@@ -9,6 +9,7 @@ export const Colors = {
     placeholder: '#FFFFFF',
     placeholdertext: '#2c2c2c',
     sendbuttonbackground: '#ebebeb',
+    bubbleBG: '#e6e6e6',
     
   },
   dark: {
@@ -21,6 +22,7 @@ export const Colors = {
     placeholder: '#202121',
     placeholdertext: '#858585',
     sendbuttonbackground: '#000100',
+    bubbleBG: '#202121',
     
   },
 };

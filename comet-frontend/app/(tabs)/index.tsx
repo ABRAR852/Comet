@@ -1,20 +1,60 @@
-import { StyleSheet, View ,Text, TextInput, KeyboardAvoidingView, Platform, Pressable, TouchableOpacity } from "react-native";
+import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useThemeColors";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
 import { useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
+import UserQuery from "../../components/UserQuery";
+import { LinearGradient } from "expo-linear-gradient";
+import { userQuery } from "../../services/Services";
+import { ActivityIndicator } from "react-native";
+import ResponseBubble from "../../components/ResponseBubble";
+import { Keyboard } from "react-native";
+import axios from "axios";
+
+interface aiMsg {
+    conversationId: string;
+    content: string;
+}
 
 export default function ChatScreen (){
     const colors = useTheme();
     const styles = getStyles(colors);
+    const [messages, setMessages] = useState<{id: string, role: string, content: string}[]>([]);
     const [text, setText] = useState('');
-    const [query, setQuery] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [conversationId, setConversationId] = useState<string | null>(null);
+    
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if(!text.trim()) return;
-        setQuery(text);
+        const useMsg = {id: Date.now().toString(), role: 'user', content: text}
+        setMessages(pre => [...pre, useMsg]);
         setText('');
+        Keyboard.dismiss();
+        setLoading(true);
+
+        try {
+            const data = await userQuery(conversationId, useMsg.content);
+            setConversationId(data.conversationId);
+            const assistantMsg = {id: (Date.now() + 1 ).toString(),
+                role: 'assistant', 
+                content: data.content};
+            setMessages(prev => [...prev, assistantMsg]);
+        } catch (error) {
+            console.log("ERROR WHILE SENDING: ", error);
+            const isTimeout = axios.isAxiosError(error) && error.code === 'ECONNABORTED';
+            const errorMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: isTimeout
+                ? "That took too long — try again?"
+                : "Something went wrong. Please try again.",
+            };
+            setMessages(prev => [...prev, errorMessage]);
+        }finally{
+            setLoading(false);
+        }
     }
     return (
         <SafeAreaProvider>
@@ -24,14 +64,29 @@ export default function ChatScreen (){
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
 
-                    <View style={styles.content}>
-                        {query ? (
-                            <View style={styles.userBubble}>
-                                <Text style={styles.userBubbleText}>{query}</Text>
-                            </View>
+                    <View style={messages.length > 0 ? styles.queryContent : styles.emptyContent}>
+                        {messages.length > 0 ? (
+                            <FlatList showsVerticalScrollIndicator={false}
+                                contentContainerStyle={styles.messageList} 
+                                data={messages} 
+                                keyExtractor={(item) => item.id} 
+                                renderItem={({item}) => item.role === 'assistant' ? (
+                                    <ResponseBubble content={item.content}/>
+                                ) : (
+                                    <UserQuery content={item.content}/>
+                                )}
+
+                                ListFooterComponent={
+                                    loading ? <ActivityIndicator size={'small'} color= {colors.text} 
+                                        style={{ marginVertical: hp(1) }}/> : null 
+                                }
+                            />
                         ) : (
                             <Text style={styles.welcometext}>Ask anything!</Text>
                         )}
+                        <LinearGradient colors={['transparent', colors.background + 'cc', colors.background]} 
+                            locations={[0, 0.51, 1.5]}
+                            style={styles.fadeOverlay} pointerEvents="none"/>
                     </View>
 
                     <View style={styles.inputWrapper}>
@@ -42,15 +97,15 @@ export default function ChatScreen (){
                             <Ionicons name='arrow-up' size={wp(5)} color={colors.text}></Ionicons>
                         </TouchableOpacity>
                     
-                        <TextInput style={styles.inputContainer}
+                        <TextInput style={styles.inputText}
                             onChangeText={setText}
                             value={text}
                             cursorColor={colors.text}
                             placeholder="Ask here"
                             placeholderTextColor={colors.placeholdertext}
                         />
+                        
                     </View>
-
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </SafeAreaProvider>
@@ -61,12 +116,19 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         container: {
             flex: 1,
             backgroundColor: colors.background,
+            
         },
-        content: {
+        emptyContent:{
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
             padding: wp(2),
+        },
+        queryContent: {
+            flex: 1,
+            justifyContent: 'center',
+            padding: wp(2),
+            position: 'relative',
         },
         welcometext: {
             fontSize: wp(7),
@@ -79,14 +141,14 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             alignItems: 'center',
             width: wp(95),
             alignSelf: 'center',
-            marginBottom: wp(10),
+            marginBottom: hp(1.5),
             paddingRight: wp(2.5),
             borderColor: colors.border,
             borderWidth: wp(0.5),
             borderRadius: wp(8),
             backgroundColor: colors.placeholder,
         },
-        inputContainer: {
+        inputText: {
             flex: 1,
             height: wp(12),
             paddingLeft: wp(5),
@@ -105,22 +167,18 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         sendButtonOpacity: {
             opacity: 0.6
         },
-        userBubble: {
-            alignSelf: 'flex-end',
-            maxWidth: wp(80),
-            borderTopRightRadius: wp(5),
-            borderTopLeftRadius: wp(5),
-            borderBottomLeftRadius: wp(5),
-            borderBottomRightRadius: wp(0.7),
-            paddingVertical: wp(3.5),
-            paddingHorizontal: wp(4),
-            backgroundColor: colors.placeholder
-
+        messageList: {
+            paddingHorizontal: wp(1),
+            paddingTop: hp(5),
+            paddingBottom: hp(10),
+            gap: hp(3),
         },
-        userBubbleText: {
-            fontSize: wp(4),
-            lineHeight: hp(3),
-            color: colors.text
+        fadeOverlay: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: hp(6),
         }
         
     });

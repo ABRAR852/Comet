@@ -1,6 +1,4 @@
 package com.comet.app.Controller;
-
-import com.comet.app.Entity.Message;
 import com.comet.app.Entity.MessageDTO;
 import com.comet.app.Entity.Task;
 import com.comet.app.Repository.CrudRepository;
@@ -12,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/User")
 public class UserController {
 
     private final AiService aiMessageService;
