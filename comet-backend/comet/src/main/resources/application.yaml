@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require
+    username: postgres.lrytyljexiglmrscjqjc
+    password: UV8tyWUAwIfcJ6Ij
+
+  application:
+    name: comet
+  ai:
+    openai:
+      api-key: ${GROQ_API_KEY}
+      base-url: https://api.groq.com/openai/v1
+      temperature: 0.5
+      top-p: 0.9
+      chat:
+        model: openai/gpt-oss-120b
+  mcp:
+    server:
+      name: comet-tools-server
+      version: 1.0.0
+      protocol: STREAMABLE
+      type: SYNC
+logging:
+  level:
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
+tavilysearch:
+  api-key: ${TAVILY_API_KEY}
