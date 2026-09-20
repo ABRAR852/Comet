@@ -1,15 +1,19 @@
-import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
+import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView, 
+    Keyboard, 
+    Platform, 
+    TouchableOpacity, 
+    PanResponder, 
+    TouchableWithoutFeedback } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useThemeColors";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import UserQuery from "../../components/UserQuery";
 import { LinearGradient } from "expo-linear-gradient";
 import { userQuery } from "../../services/Services";
 import { ActivityIndicator } from "react-native";
 import ResponseBubble from "../../components/ResponseBubble";
-import { Keyboard } from "react-native";
 import axios from "axios";
 
 interface aiMsg {
@@ -24,7 +28,8 @@ export default function ChatScreen (){
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [conversationId, setConversationId] = useState<string | null>(null);
-    
+    const flatListRef = useRef<FlatList>(null);
+    const inputGesRef = useRef<TextInput>(null);
 
     const handleSend = async () => {
         if(!text.trim()) return;
@@ -56,6 +61,18 @@ export default function ChatScreen (){
             setLoading(false);
         }
     }
+
+    const panResponder = useRef (
+        PanResponder.create({
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                return Math.abs(gestureState.dy) > 20 && gestureState.vy < -0.2;
+            },
+            onPanResponderRelease: () => {
+                inputGesRef.current?.focus();
+            },
+        })
+    ).current;
+
     return (
         <SafeAreaProvider>
             <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -63,49 +80,62 @@ export default function ChatScreen (){
                     style={{flex: 1}}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
-
                     <View style={messages.length > 0 ? styles.queryContent : styles.emptyContent}>
-                        {messages.length > 0 ? (
-                            <FlatList showsVerticalScrollIndicator={false}
-                                contentContainerStyle={styles.messageList} 
-                                data={messages} 
-                                keyExtractor={(item) => item.id} 
-                                renderItem={({item}) => item.role === 'assistant' ? (
-                                    <ResponseBubble content={item.content}/>
+                        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                            <View style={{flex: 1}}>
+                                {messages.length > 0 ? (
+                                    <FlatList showsVerticalScrollIndicator={false}
+                                        contentContainerStyle={styles.messageList} 
+                                        ref={flatListRef}
+                                        data={messages} 
+                                        keyExtractor={(item) => item.id} 
+                                        renderItem={({item}) => item.role === 'assistant' ? (
+                                            <ResponseBubble content={item.content}/>
+                                        ) : (
+                                            <UserQuery content={item.content}/>
+                                        )}
+
+                                        ListFooterComponent={
+                                            loading ? <ActivityIndicator size={'small'} color= {colors.text} 
+                                                style={{ marginVertical: hp(1) }}/> : null 
+                                        }
+                                        onContentSizeChange={() => {
+                                            flatListRef.current?.scrollToEnd({ animated: true });
+                                            setTimeout(() => {
+                                                flatListRef.current?.scrollToEnd({ animated: true });
+                                            }, 100);
+                                        }}
+                                    />
                                 ) : (
-                                    <UserQuery content={item.content}/>
+                                    <Text style={styles.welcometext}>Ask anything!</Text>
                                 )}
-
-                                ListFooterComponent={
-                                    loading ? <ActivityIndicator size={'small'} color= {colors.text} 
-                                        style={{ marginVertical: hp(1) }}/> : null 
-                                }
-                            />
-                        ) : (
-                            <Text style={styles.welcometext}>Ask anything!</Text>
-                        )}
-                        <LinearGradient colors={['transparent', colors.background + 'cc', colors.background]} 
-                            locations={[0, 0.51, 1.5]}
-                            style={styles.fadeOverlay} pointerEvents="none"/>
-                    </View>
-
-                    <View style={styles.inputWrapper}>
-                        <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
-                            activeOpacity={0.5} 
-                            onPress={handleSend} 
-                            disabled={!text.trim()}>
-                            <Ionicons name='arrow-up' size={wp(5)} color={colors.text}></Ionicons>
-                        </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
+                            
+                            <View {...panResponder.panHandlers} style={styles.inputGes}/>
+                                <LinearGradient colors={['transparent', colors.background + 'cc', colors.background]} 
+                                    locations={[0, 0.51, 1.5]}
+                                    style={styles.fadeOverlay} pointerEvents="none"/>
+                            </View>
                     
-                        <TextInput style={styles.inputText}
-                            onChangeText={setText}
-                            value={text}
-                            cursorColor={colors.text}
-                            placeholder="Ask here"
-                            placeholderTextColor={colors.placeholdertext}
-                        />
-                        
-                    </View>
+                            <View style={styles.inputWrapper}>
+                                <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
+                                    activeOpacity={0.5} 
+                                    onPress={handleSend} 
+                                    disabled={!text.trim()}>
+                                    <Ionicons name='arrow-up' size={wp(5)} color={colors.text}></Ionicons>
+                                </TouchableOpacity>
+                            
+                                <TextInput style={styles.inputText}
+                                    onChangeText={setText}
+                                    value={text}
+                                    ref={inputGesRef}
+                                    cursorColor={colors.text}
+                                    placeholder="Ask here"
+                                    placeholderTextColor={colors.placeholdertext}
+                                />
+                            </View>
+                            
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </SafeAreaProvider>
@@ -116,7 +146,6 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         container: {
             flex: 1,
             backgroundColor: colors.background,
-            
         },
         emptyContent:{
             flex: 1,
@@ -170,7 +199,7 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         messageList: {
             paddingHorizontal: wp(1),
             paddingTop: hp(5),
-            paddingBottom: hp(10),
+            paddingBottom: hp(15),
             gap: hp(3),
         },
         fadeOverlay: {
@@ -179,6 +208,12 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             left: 0,
             right: 0,
             height: hp(6),
+        },
+        inputGes: {
+            width: '100%',
+            height: hp(10),
+            alignItems: 'center',
+            justifyContent: 'center',
         }
         
     });
