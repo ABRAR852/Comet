@@ -24,6 +24,7 @@ export default function ResponseBubble ({ content }: ResponseBubble ) {
 function getStyles(colors: ReturnType<typeof useTheme>) {
     return StyleSheet.create({
         responseBubble: {
+            width: '100%',
             alignSelf: 'flex-start',
         }
     });
@@ -41,10 +42,28 @@ function getMarkdownStyles(colors: ReturnType<typeof useTheme>) {
     ordered_list: { marginVertical: hp(0.5) },
     list_item: { flexDirection: 'row' as const, marginBottom: hp(0.5) },
     code_inline: {
-      backgroundColor: colors.background,
+      backgroundColor: colors.bubbleBG,
       paddingHorizontal: wp(1),
-      borderRadius: 4,
+      borderRadius: wp(2),
       fontFamily: 'monospace',
+    },
+    code_block: {
+      backgroundColor: colors.bubbleBG,
+      color: colors.text,
+      padding: wp(3),
+      borderRadius: wp(2),
+      fontFamily: 'monospace',
+      fontSize: wp(3.5),
+    },
+    fence: {
+      backgroundColor: colors.bubbleBG,
+      color: colors.text,
+      padding: wp(4),
+      borderRadius: wp(3),
+      borderColor: '#414141',
+      borderWidth: wp(0.0),
+      fontFamily: 'monospace',
+      fontSize: wp(3.5),
     },
   };
 }

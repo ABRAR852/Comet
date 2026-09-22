@@ -6,6 +6,7 @@
     "@react-native-vector-icons/ionicons": "^13.1.4",
     "axios": "^1.20.0",
     "expo": "~57.0.22",
+    "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.18",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.10",

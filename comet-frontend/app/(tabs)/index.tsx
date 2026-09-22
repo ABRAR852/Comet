@@ -2,24 +2,19 @@ import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView,
     Keyboard, 
     Platform, 
     TouchableOpacity, 
-    PanResponder, 
-    TouchableWithoutFeedback } from "react-native";
+    PanResponder} from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useThemeColors";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
 import { useRef, useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import UserQuery from "../../components/UserQuery";
-import { LinearGradient } from "expo-linear-gradient";
 import { userQuery } from "../../services/Services";
 import { ActivityIndicator } from "react-native";
 import ResponseBubble from "../../components/ResponseBubble";
 import axios from "axios";
+import { BlurView, BlurTargetView } from "expo-blur";
 
-interface aiMsg {
-    conversationId: string;
-    content: string;
-}
 
 export default function ChatScreen (){
     const colors = useTheme();
@@ -30,6 +25,7 @@ export default function ChatScreen (){
     const [conversationId, setConversationId] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const inputGesRef = useRef<TextInput>(null);
+    const targetRef = useRef<View>(null);
 
     const handleSend = async () => {
         if(!text.trim()) return;
@@ -81,8 +77,7 @@ export default function ChatScreen (){
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
                     <View style={messages.length > 0 ? styles.queryContent : styles.emptyContent}>
-                        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                            <View style={{flex: 1}}>
+                            <BlurTargetView ref={targetRef} style={{flex: 1}}>
                                 {messages.length > 0 ? (
                                     <FlatList showsVerticalScrollIndicator={false}
                                         contentContainerStyle={styles.messageList} 
@@ -97,7 +92,7 @@ export default function ChatScreen (){
 
                                         ListFooterComponent={
                                             loading ? <ActivityIndicator size={'small'} color= {colors.text} 
-                                                style={{ marginVertical: hp(1) }}/> : null 
+                                                style={{ marginVertical: hp(1), alignItems: 'flex-start' }}/> : null 
                                         }
                                         onContentSizeChange={() => {
                                             flatListRef.current?.scrollToEnd({ animated: true });
@@ -109,16 +104,10 @@ export default function ChatScreen (){
                                 ) : (
                                     <Text style={styles.welcometext}>Ask anything!</Text>
                                 )}
-                            </View>
-                        </TouchableWithoutFeedback>
-                            
-                            <View {...panResponder.panHandlers} style={styles.inputGes}/>
-                                <LinearGradient colors={['transparent', colors.background + 'cc', colors.background]} 
-                                    locations={[0, 0.51, 1.5]}
-                                    style={styles.fadeOverlay} pointerEvents="none"/>
-                            </View>
-                    
-                            <View style={styles.inputWrapper}>
+                            </BlurTargetView>
+                        
+                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurViewSdk31Plus"
+                                intensity={45} tint='dark' style={styles.inputWrapper}>
                                 <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
                                     activeOpacity={0.5} 
                                     onPress={handleSend} 
@@ -134,8 +123,8 @@ export default function ChatScreen (){
                                     placeholder="Ask here"
                                     placeholderTextColor={colors.placeholdertext}
                                 />
-                            </View>
-                            
+                            </BlurView>
+                    </View>     
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </SafeAreaProvider>
@@ -152,6 +141,7 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             alignItems: 'center',
             justifyContent: 'center',
             padding: wp(2),
+            position: 'relative',
         },
         queryContent: {
             flex: 1,
@@ -170,12 +160,14 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             alignItems: 'center',
             width: wp(95),
             alignSelf: 'center',
-            marginBottom: hp(1.5),
+            position: 'absolute',
+            zIndex: 10,
+            bottom: hp(2.5),
             paddingRight: wp(2.5),
             borderColor: colors.border,
             borderWidth: wp(0.5),
             borderRadius: wp(8),
-            backgroundColor: colors.placeholder,
+            overflow: 'hidden'
         },
         inputText: {
             flex: 1,
@@ -199,7 +191,7 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         messageList: {
             paddingHorizontal: wp(1),
             paddingTop: hp(5),
-            paddingBottom: hp(15),
+            paddingBottom: hp(13),
             gap: hp(3),
         },
         fadeOverlay: {
@@ -209,12 +201,6 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             right: 0,
             height: hp(6),
         },
-        inputGes: {
-            width: '100%',
-            height: hp(10),
-            alignItems: 'center',
-            justifyContent: 'center',
-        }
         
     });
 
