@@ -1,7 +1,6 @@
 package com.comet.app.Repository;
 
 import com.comet.app.Entity.Message;
-import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class MsgRepository {
@@ -30,21 +30,20 @@ public class MsgRepository {
         }
     }
 
-    public String addMsg(Message userMessage, Message aiMessage){
+    public void addMsg(Message userMessage, Message aiMessage){
         try {
             jdbcTemplate.update("INSERT INTO messages (conversation_id, content, role) VALUES (?, ?, ?)",
-                    userMessage.getConversationId().toString(), userMessage.getContent(), userMessage.getRole().name());
+                    userMessage.getConversationId(), userMessage.getContent(), userMessage.getRole().name());
             jdbcTemplate.update("INSERT INTO messages (conversation_id, content, role) VALUES (?, ?, ?)",
-                    aiMessage.getConversationId().toString(), aiMessage.getContent(), aiMessage.getRole().name());
-            return userMessage.getConversationId().toString();
+                    aiMessage.getConversationId(), aiMessage.getContent(), aiMessage.getRole().name());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public List<org.springframework.ai.chat.messages.Message> getMsgHistory(String conversationId){
+    public List<org.springframework.ai.chat.messages.Message> getMsgHistory(UUID conversationId){
         try {
-            String sql = "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY datetime DESC LIMIT 30";
+            String sql = "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY datetime DESC LIMIT 10";
             List<org.springframework.ai.chat.messages.Message> messages = jdbcTemplate.query(sql, (rs, rowNum) -> {
                 String role = rs.getString("role");
                 String content = rs.getString("content");

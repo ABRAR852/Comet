@@ -1,6 +1,7 @@
 package com.comet.app.Controller;
 import com.comet.app.Entity.MessageDTO;
 import com.comet.app.Entity.Task;
+import com.comet.app.Repository.ConvRepository;
 import com.comet.app.Repository.CrudRepository;
 import com.comet.app.Repository.MsgRepository;
 import com.comet.app.Service.AiService;
@@ -16,15 +17,17 @@ public class UserController {
     private final AiService aiMessageService;
     private final CrudRepository crudRepository;
     private final MsgRepository msgRepository;
+    private final ConvRepository convRepository;
     private final WeatherToolService weatherToolService;
 
     public UserController(AiService aiMessageService,
                           CrudRepository crudRepository,
-                          MsgRepository msgRepository,
+                          MsgRepository msgRepository, ConvRepository convRepository,
                           WeatherToolService weatherToolService) {
         this.aiMessageService = aiMessageService;
         this.crudRepository = crudRepository;
         this.msgRepository = msgRepository;
+        this.convRepository = convRepository;
         this.weatherToolService = weatherToolService;
     }
 
@@ -50,6 +53,15 @@ public class UserController {
     public String createMsgTable(){
         try {
             return msgRepository.createTable();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @PostMapping("/create-convTable")
+    public String createConvTable(){
+        try {
+            return convRepository.createTable();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

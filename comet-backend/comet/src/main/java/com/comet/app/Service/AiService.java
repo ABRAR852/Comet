@@ -2,6 +2,7 @@ package com.comet.app.Service;
 import com.comet.app.Entity.Message;
 import com.comet.app.Entity.MessageDTO;
 import com.comet.app.Entity.MessageRole;
+import com.comet.app.Repository.ConvRepository;
 import com.comet.app.Repository.MsgRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -23,13 +24,18 @@ public class AiService {
     private final ChatClient chatClient;
     private final ToolCallbackProvider webSearchTool;
     private final MsgRepository msgRepository;
+    private final ConvRepository convRepository;
 
-    public AiService(ChatClient.Builder chatClientBuilder, ToolCallbackProvider webSearchTool, MsgRepository msgRepository){
+    public AiService(ChatClient.Builder chatClientBuilder,
+                     ToolCallbackProvider webSearchTool,
+                     MsgRepository msgRepository, ConvRepository convRepository){
         this.chatClient = chatClientBuilder.defaultAdvisors(new SimpleLoggerAdvisor()).build();
         this.webSearchTool = webSearchTool;
         this.msgRepository = msgRepository;
+        this.convRepository = convRepository;
     }
-    private final String SYSTEM_PROMPT = """
+    private  String SYSTEM_PROMPT() {
+        return """
             You are Comet — a personal AI assistant that thinks before it speaks and never wastes the user's time. Signal over filler, always.
             
             ## IDENTITY
@@ -70,6 +76,7 @@ public class AiService {
             ## SAFETY
             Decline harmful requests with flat neutrality — no lecture, no over-explaining. State what you can't do and, where relevant, what you can do instead.;
             """;
+    }
 
     public MessageDTO askAi (MessageDTO userQuery) {
         try {
@@ -78,15 +85,15 @@ public class AiService {
                     ? UUID.fromString(conversationId)
                     : UUID.randomUUID());
 
-            List<org.springframework.ai.chat.messages.Message> msgHistory = msgRepository.getMsgHistory(raw.toString());
+            List<org.springframework.ai.chat.messages.Message> msgHistory = msgRepository.getMsgHistory(raw);
 
             if(msgHistory == null){
                 msgHistory = List.of();
             }
-            String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy HH:mm:ss"));
+            String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy HH:mm:ss")); // local time context for llm
 
             ChatResponse content = chatClient.prompt()
-                    .system(s -> s.text(SYSTEM_PROMPT).param("currentTime", time))
+                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", time))
                     .user(userQuery.getContent())
                     .tools(webSearchTool)
                     .messages(msgHistory)
@@ -95,10 +102,10 @@ public class AiService {
 
             if(content != null && content.getResult() != null){
 
-                String content1 = userQuery.getContent();
+                String userContent = userQuery.getContent();
                 Message userMsg = new Message(); // USER MESSAGE
                 userMsg.setConversationId(raw);
-                userMsg.setContent(content1);
+                userMsg.setContent(userContent);
                 userMsg.setRole(MessageRole.USER);
 
                 Message aiMsg = new Message(); // ASSISTANT MESSAGE
@@ -106,6 +113,7 @@ public class AiService {
                 aiMsg.setContent(content.getResult().getOutput().getText());
                 aiMsg.setRole(MessageRole.ASSISTANT);
 
+                convRepository.addConv(raw); // SAVES CONVERSATION INTO DATABASE
                 msgRepository.addMsg(userMsg, aiMsg); // SAVES MESSAGES INTO DATABASE
 
                 MessageDTO messageDTO = new MessageDTO();
