@@ -113,6 +113,10 @@ public class AiService {
                 aiMsg.setContent(content.getResult().getOutput().getText());
                 aiMsg.setRole(MessageRole.ASSISTANT);
 
+                if(convRepository.getConvTitleById(raw.toString())){
+                    convRepository.addConvTitle(raw.toString(), userQuery.getContent(), content.getResult().getOutput().getText());
+                }
+
                 convRepository.addConv(raw); // SAVES CONVERSATION INTO DATABASE
                 msgRepository.addMsg(userMsg, aiMsg); // SAVES MESSAGES INTO DATABASE
 
