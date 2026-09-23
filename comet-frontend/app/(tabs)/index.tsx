@@ -2,7 +2,8 @@ import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView,
     Keyboard, 
     Platform, 
     TouchableOpacity, 
-    PanResponder} from "react-native";
+    PanResponder,
+    useColorScheme} from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useThemeColors";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
@@ -14,10 +15,13 @@ import { ActivityIndicator } from "react-native";
 import ResponseBubble from "../../components/ResponseBubble";
 import axios from "axios";
 import { BlurView, BlurTargetView } from "expo-blur";
+import { useNavigation } from "expo-router";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 
 
 export default function ChatScreen (){
     const colors = useTheme();
+    const UIMode = useColorScheme();
     const styles = getStyles(colors);
     const [messages, setMessages] = useState<{id: string, role: string, content: string}[]>([]);
     const [text, setText] = useState('');
@@ -26,6 +30,8 @@ export default function ChatScreen (){
     const flatListRef = useRef<FlatList>(null);
     const inputGesRef = useRef<TextInput>(null);
     const targetRef = useRef<View>(null);
+    const navigation = useNavigation<DrawerNavigationProp<any>>();
+
 
     const handleSend = async () => {
         if(!text.trim()) return;
@@ -105,14 +111,28 @@ export default function ChatScreen (){
                                     <Text style={styles.welcometext}>Ask anything!</Text>
                                 )}
                             </BlurTargetView>
+
+                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
+                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={35} style={styles.drawerButtonWrapper}>
+                                <TouchableOpacity style={styles.drawerButton} onPress={() => {
+                                    const parent = navigation.getParent<DrawerNavigationProp<any>>();
+                                    if (parent?.openDrawer) {
+                                        parent.openDrawer();
+                                    } else {
+                                        navigation?.openDrawer();
+                                    }
+                                }}>
+                                    <Ionicons name='menu' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
+                                </TouchableOpacity>
+                            </BlurView>
                         
-                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurViewSdk31Plus"
-                                intensity={45} tint='dark' style={styles.inputWrapper}>
+                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
+                                intensity={35} tint={UIMode == 'dark' ? 'dark' : 'light'} style={styles.inputWrapper}>
                                 <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
                                     activeOpacity={0.5} 
                                     onPress={handleSend} 
                                     disabled={!text.trim()}>
-                                    <Ionicons name='arrow-up' size={wp(5)} color={colors.text}></Ionicons>
+                                    <Ionicons name='arrow-up' size={wp(5)} color={colors.sendbuttonarrow}></Ionicons>
                                 </TouchableOpacity>
                             
                                 <TextInput style={styles.inputText}
@@ -186,7 +206,27 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             backgroundColor: colors.sendbuttonbackground,
         },
         sendButtonOpacity: {
-            opacity: 0.6
+            opacity: 0.7
+        },
+        drawerButtonWrapper: {
+            top: wp(2.5),
+            left: wp(2.5),
+            height: hp(5),
+            width: wp(13),
+            borderRadius: wp(8),
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            position: 'absolute',
+            zIndex: 10
+        },
+        drawerButton: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        drawerButtonOpacity: {
+            opacity: 0.7
         },
         messageList: {
             paddingHorizontal: wp(1),

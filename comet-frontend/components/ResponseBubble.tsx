@@ -1,4 +1,4 @@
-import { View, StyleSheet } from "react-native";
+import { View,Text, StyleSheet } from "react-native";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
 import { useTheme } from "../../comet-frontend/hooks/useThemeColors";
 import Markdown from "react-native-markdown-display";
@@ -58,6 +58,7 @@ function getMarkdownStyles(colors: ReturnType<typeof useTheme>) {
     fence: {
       backgroundColor: colors.bubbleBG,
       color: colors.text,
+      marginBottom: hp(2),
       padding: wp(4),
       borderRadius: wp(3),
       borderColor: '#414141',
