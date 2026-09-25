@@ -7,23 +7,24 @@ import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView,
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useThemeColors";
 import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import UserQuery from "../../components/UserQuery";
-import { userQuery } from "../../services/Services";
+import { getMgs, userQuery } from "../../services/Services";
 import { ActivityIndicator } from "react-native";
 import ResponseBubble from "../../components/ResponseBubble";
 import axios from "axios";
 import { BlurView, BlurTargetView } from "expo-blur";
-import { useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 export default function ChatScreen (){
     const colors = useTheme();
     const UIMode = useColorScheme();
     const styles = getStyles(colors);
-    const [messages, setMessages] = useState<{id: string, role: string, content: string}[]>([]);
+    const [query, setQuery] = useState<{id: string, role: string, content: string}[]>([]);
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [conversationId, setConversationId] = useState<string | null>(null);
@@ -31,12 +32,17 @@ export default function ChatScreen (){
     const inputGesRef = useRef<TextInput>(null);
     const targetRef = useRef<View>(null);
     const navigation = useNavigation<DrawerNavigationProp<any>>();
+    const {convId} = useLocalSearchParams<{convId: string}>();
+    const [messages, setMessages] = useState<{id: string, role: string, content: string}[]>([]);
+    const insets = useSafeAreaInsets();
 
 
     const handleSend = async () => {
+        console.log("CURRENT CONVERSATION ID ", convId);
+        
         if(!text.trim()) return;
         const useMsg = {id: Date.now().toString(), role: 'user', content: text}
-        setMessages(pre => [...pre, useMsg]);
+        setQuery(pre => [...pre, useMsg]);
         setText('');
         Keyboard.dismiss();
         setLoading(true);
@@ -45,36 +51,63 @@ export default function ChatScreen (){
             const data = await userQuery(conversationId, useMsg.content);
             setConversationId(data.conversationId);
             const assistantMsg = {id: (Date.now() + 1 ).toString(),
-                role: 'assistant', 
+                role: 'ASSISTANT', 
                 content: data.content};
-            setMessages(prev => [...prev, assistantMsg]);
+            setQuery(prev => [...prev, assistantMsg]);
         } catch (error) {
             console.log("ERROR WHILE SENDING: ", error);
             const isTimeout = axios.isAxiosError(error) && error.code === 'ECONNABORTED';
             const errorMessage = {
                 id: (Date.now() + 1).toString(),
-                role: 'assistant',
+                role: 'ASSISTANT',
                 content: isTimeout
                 ? "That took too long — try again?"
                 : "Something went wrong. Please try again.",
             };
-            setMessages(prev => [...prev, errorMessage]);
+            setQuery(prev => [...prev, errorMessage]);
         }finally{
             setLoading(false);
         }
     }
 
-    const panResponder = useRef (
-        PanResponder.create({
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                return Math.abs(gestureState.dy) > 20 && gestureState.vy < -0.2;
-            },
-            onPanResponderRelease: () => {
-                inputGesRef.current?.focus();
-            },
-        })
-    ).current;
+    const getMessages = async (convId: string) => {
+        try {
+            console.log("GOT CONVERSATION ID ", convId);
 
+            setLoading(true);
+
+            const response = await getMgs(convId);
+            if(query.length > 0) setQuery([]);
+            setMessages(response.data);
+            console.log("CONVERSATION ID MESSAGES  ", response.data);
+
+        } catch (error) {
+            console.log("ERROR WHILE GETTING MESSAGES: ", error);
+        }finally{
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        if(convId){
+            console.log("CONVERSATION ID ", convId);
+            
+            getMessages(convId);
+        }
+    }, [convId]);
+
+    const clearCurrentMsg = async () => {
+        try {
+            setLoading(true);
+
+            setMessages([]);
+
+        } catch (error) {
+            console.log("ERROR WHILE GETTING MESSAGES: ", error);
+        }finally{
+            setLoading(false);
+        }
+    }
     return (
         <SafeAreaProvider>
             <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -82,15 +115,38 @@ export default function ChatScreen (){
                     style={{flex: 1}}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
-                    <View style={messages.length > 0 ? styles.queryContent : styles.emptyContent}>
+                    <View style={query.length > 0 ? styles.queryContent : styles.emptyContent}>
                             <BlurTargetView ref={targetRef} style={{flex: 1}}>
-                                {messages.length > 0 ? (
+                                {query.length > 0 ? (
+                                    <FlatList showsVerticalScrollIndicator={false}
+                                        contentContainerStyle={styles.messageList} 
+                                        ref={flatListRef}
+                                        data={query} 
+                                        keyExtractor={(item) => item.id} 
+                                        renderItem={({item}) => item.role === 'ASSISTANT' ? (
+                                            <ResponseBubble content={item.content}/>
+                                        ) : (
+                                            <UserQuery content={item.content}/>
+                                        )}
+
+                                        ListFooterComponent={
+                                            loading ? <ActivityIndicator size={'small'} color= {colors.text} 
+                                                style={{ marginVertical: hp(1), alignItems: 'flex-start' }}/> : null 
+                                        }
+                                        onContentSizeChange={() => {
+                                            flatListRef.current?.scrollToEnd({ animated: true });
+                                            setTimeout(() => {
+                                                flatListRef.current?.scrollToEnd({ animated: true });
+                                            }, 100);
+                                        }}
+                                    />
+                                ) : messages.length > 0 ? (
                                     <FlatList showsVerticalScrollIndicator={false}
                                         contentContainerStyle={styles.messageList} 
                                         ref={flatListRef}
                                         data={messages} 
-                                        keyExtractor={(item) => item.id} 
-                                        renderItem={({item}) => item.role === 'assistant' ? (
+                                        keyExtractor={(item, index) => item.id ? item.id.toString() : `${item.conversationId || 'msg'}-${index}`}
+                                        renderItem={({item}) => item.role === 'ASSISTANT' ? (
                                             <ResponseBubble content={item.content}/>
                                         ) : (
                                             <UserQuery content={item.content}/>
@@ -113,7 +169,7 @@ export default function ChatScreen (){
                             </BlurTargetView>
 
                             <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
-                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={35} style={styles.drawerButtonWrapper}>
+                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={45} style={styles.drawerButtonWrapper}>
                                 <TouchableOpacity style={styles.drawerButton} onPress={() => {
                                     const parent = navigation.getParent<DrawerNavigationProp<any>>();
                                     if (parent?.openDrawer) {
@@ -122,12 +178,24 @@ export default function ChatScreen (){
                                         navigation?.openDrawer();
                                     }
                                 }}>
-                                    <Ionicons name='menu' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
+                                    <Ionicons name='chatbubbles-outline' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
+                                </TouchableOpacity>
+                            </BlurView>
+
+                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
+                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={45} style={[
+                                    styles.newChatButtonWrapper, 
+                                    { top: insets.top + wp(2.5) } 
+                                ]}>
+                                <TouchableOpacity style={styles.newChatButton} onPress={() => {
+                                        clearCurrentMsg()
+                                }}>
+                                    <Ionicons name='create-outline' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
                                 </TouchableOpacity>
                             </BlurView>
                         
                             <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
-                                intensity={35} tint={UIMode == 'dark' ? 'dark' : 'light'} style={styles.inputWrapper}>
+                                intensity={45} tint={UIMode == 'dark' ? 'dark' : 'light'} style={styles.inputWrapper}>
                                 <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
                                     activeOpacity={0.5} 
                                     onPress={handleSend} 
@@ -225,8 +293,20 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
             alignItems: 'center',
             justifyContent: 'center',
         },
-        drawerButtonOpacity: {
-            opacity: 0.7
+        newChatButtonWrapper: {
+            right: wp(2.5),
+            height: hp(5),
+            width: wp(13),
+            borderRadius: wp(8),
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'absolute',
+            zIndex: 10
+        },
+        newChatButton: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
         },
         messageList: {
             paddingHorizontal: wp(1),
