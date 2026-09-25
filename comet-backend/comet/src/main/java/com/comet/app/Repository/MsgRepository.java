@@ -1,8 +1,9 @@
 package com.comet.app.Repository;
-
 import com.comet.app.Entity.Message;
+import com.comet.app.Entity.MessageDTO;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -36,6 +37,15 @@ public class MsgRepository {
                     userMessage.getConversationId(), userMessage.getContent(), userMessage.getRole().name());
             jdbcTemplate.update("INSERT INTO messages (conversation_id, content, role) VALUES (?, ?, ?)",
                     aiMessage.getConversationId(), aiMessage.getContent(), aiMessage.getRole().name());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<MessageDTO> getMsgByConvId(String convId){
+        try {
+            return jdbcTemplate.query("SELECT * FROM messages WHERE conversation_id = ?",
+                    new BeanPropertyRowMapper<>(MessageDTO.class), UUID.fromString(convId));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

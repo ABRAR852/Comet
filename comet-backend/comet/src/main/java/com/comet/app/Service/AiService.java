@@ -123,6 +123,7 @@ public class AiService {
                 MessageDTO messageDTO = new MessageDTO();
                 messageDTO.setConversationId(raw.toString());
                 messageDTO.setContent(content.getResult().getOutput().getText());
+                messageDTO.setRole(MessageRole.ASSISTANT);
                 return messageDTO;
             }
         } catch (Exception e) {

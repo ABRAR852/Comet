@@ -5,6 +5,8 @@ import com.comet.app.Repository.ConvRepository;
 import com.comet.app.Repository.CrudRepository;
 import com.comet.app.Repository.MsgRepository;
 import com.comet.app.Service.AiService;
+import com.comet.app.Service.ConvService;
+import com.comet.app.Service.MsgService;
 import com.comet.app.Tools.WeatherToolService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,16 +21,20 @@ public class UserController {
     private final MsgRepository msgRepository;
     private final ConvRepository convRepository;
     private final WeatherToolService weatherToolService;
-
+    private final ConvService convService;
+    private final MsgService msgService;
     public UserController(AiService aiMessageService,
                           CrudRepository crudRepository,
                           MsgRepository msgRepository, ConvRepository convRepository,
-                          WeatherToolService weatherToolService) {
+                          WeatherToolService weatherToolService, ConvService convService,
+                          MsgService msgService) {
         this.aiMessageService = aiMessageService;
         this.crudRepository = crudRepository;
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
         this.weatherToolService = weatherToolService;
+        this.convService = convService;
+        this.msgService = msgService;
     }
 
     @PostMapping("/askQuery") // API for user queries
@@ -90,6 +96,26 @@ public class UserController {
         try {
             String weather = weatherToolService.getWeather(cityName);
             return new ResponseEntity<>(weather, HttpStatus.OK);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @GetMapping("/get-conv")
+    public ResponseEntity<?> getConversations(){
+        try {
+            ResponseEntity<?> allConv = convService.getAllConv();
+            return new ResponseEntity<>(allConv.getBody(), allConv.getStatusCode());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @GetMapping("/get-msg/{convId}")
+    public ResponseEntity<?> getMessages(@PathVariable String convId){
+        try {
+            ResponseEntity<?> messagesByConvId = msgService.getMessagesByConvId(convId);
+            return new ResponseEntity<>(messagesByConvId.getBody(), messagesByConvId.getStatusCode());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -1,5 +1,7 @@
 package com.comet.app.Repository;
+import com.comet.app.Entity.ConversationDTO;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Repository;
@@ -42,6 +44,15 @@ public class ConvRepository {
         try {
             List<String> title = jdbcTemplate.queryForList("SELECT title from conversations where id = ? AND title IS NOT NULL AND title != ''", String.class, UUID.fromString(convId));
             return !title.isEmpty() && "New Chat".equalsIgnoreCase(title.get(0));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<ConversationDTO> getAllConv() {
+        try {
+            return jdbcTemplate.query("SELECT * FROM conversations",
+                        new BeanPropertyRowMapper<>(ConversationDTO.class));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
