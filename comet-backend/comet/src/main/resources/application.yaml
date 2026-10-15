@@ -13,7 +13,7 @@ spring:
       temperature: 0.5
       top-p: 0.9
       chat:
-        model: openai/gpt-oss-120b
+        model: openai/gpt-oss-20b
   mcp:
     server:
       name: comet-tools-server

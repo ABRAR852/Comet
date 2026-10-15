@@ -11,6 +11,7 @@ import com.comet.app.Tools.WeatherToolService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/User")
@@ -41,6 +42,15 @@ public class UserController {
     public MessageDTO askQuery(@RequestBody MessageDTO userQuery){
         try {
             return aiMessageService.askAi(userQuery);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @PostMapping("/askQuery/flux") // API for user queries
+    public Flux<String> askQueryFlux(@RequestBody MessageDTO userQuery){
+        try {
+            return aiMessageService.askAiFlux(userQuery);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
