@@ -36,7 +36,7 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         userBubbleText: {
             fontSize: wp(4),
             lineHeight: hp(3),
-            color: colors.text
+            color: colors.text,
         }
     });
 

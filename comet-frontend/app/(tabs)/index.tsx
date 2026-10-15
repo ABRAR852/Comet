@@ -1,327 +1,371 @@
-import { StyleSheet, View ,Text, FlatList, TextInput, KeyboardAvoidingView, 
-    Keyboard, 
-    Platform, 
-    TouchableOpacity, 
-    PanResponder,
-    useColorScheme} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "../../hooks/useThemeColors";
-import { heightPercentageToDP as hp , widthPercentageToDP as wp } from "react-native-responsive-screen";
+import {
+    StyleSheet,
+    View,
+    Text,
+    FlatList,
+    TextInput,
+    KeyboardAvoidingView,
+    Keyboard,
+    Platform,
+    TouchableOpacity,
+    ActivityIndicator,
+    useColorScheme,
+} from "react-native";
+import { useSafeAreaInsets, EdgeInsets } from "react-native-safe-area-context";
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
 import { useEffect, useRef, useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import UserQuery from "../../components/UserQuery";
-import { getMgs, userQuery } from "../../services/Services";
-import { ActivityIndicator } from "react-native";
-import ResponseBubble from "../../components/ResponseBubble";
 import axios from "axios";
 import { BlurView, BlurTargetView } from "expo-blur";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from "../../hooks/useThemeColors";
+import UserQuery from "../../components/UserQuery";
+import ResponseBubble from "../../components/ResponseBubble";
+import { getMgs, userQuery } from "../../services/Services";
 
+type Msg = { id: string; role: string; content: string };
 
-export default function ChatScreen (){
+function withAlpha(color: string, alpha: number): string {
+    const hex = color.replace("#", "");
+    if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+    if (/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (m) return `rgba(${m[1]},${m[2]},${m[3]},${alpha})`;
+    return `rgba(0,0,0,${alpha})`;
+}
+
+export default function ChatScreen() {
     const colors = useTheme();
     const UIMode = useColorScheme();
-    const styles = getStyles(colors);
-    const [query, setQuery] = useState<{id: string, role: string, content: string}[]>([]);
-    const [text, setText] = useState('');
+    const insets = useSafeAreaInsets();
+    const styles = getStyles(colors, insets);
+
+    const [messages, setMessages] = useState<Msg[]>([]);
+    const [text, setText] = useState("");
     const [loading, setLoading] = useState(false);
     const [conversationId, setConversationId] = useState<string | null>(null);
-    const flatListRef = useRef<FlatList>(null);
-    const inputGesRef = useRef<TextInput>(null);
-    const targetRef = useRef<View>(null);
-    const navigation = useNavigation<DrawerNavigationProp<any>>();
-    const {convId} = useLocalSearchParams<{convId: string}>();
-    const [messages, setMessages] = useState<{id: string, role: string, content: string}[]>([]);
-    const insets = useSafeAreaInsets();
 
+    const flatListRef = useRef<FlatList>(null);
+    const targetRef = useRef<View>(null);
+
+    const navigation = useNavigation<DrawerNavigationProp<any>>();
+    const router = useRouter();
+    const { convId } = useLocalSearchParams<{ convId: string }>();
+
+    const tint = UIMode === "dark" ? "dark" : "light";
+    const isEmpty = messages.length === 0;
+
+    const bg = colors.background;
+    const fadeColors = [bg, withAlpha(bg, 0.85), withAlpha(bg, 0)] as const;
+    const fadeLocations = [0, 0.55, 1] as const;
 
     const handleSend = async () => {
-        console.log("CURRENT CONVERSATION ID ", convId);
-        
-        if(!text.trim()) return;
-        const useMsg = {id: Date.now().toString(), role: 'user', content: text}
-        setQuery(pre => [...pre, useMsg]);
-        setText('');
+        const content = text.trim();
+        if (!content) return;
+
+        const userMsg: Msg = { id: Date.now().toString(), role: "user", content };
+        setMessages((prev) => [...prev, userMsg]);
+        setText("");
         Keyboard.dismiss();
         setLoading(true);
 
         try {
-            const data = await userQuery(conversationId, useMsg.content);
+            const data = await userQuery(conversationId, content);
             setConversationId(data.conversationId);
-            const assistantMsg = {id: (Date.now() + 1 ).toString(),
-                role: 'ASSISTANT', 
-                content: data.content};
-            setQuery(prev => [...prev, assistantMsg]);
+            setMessages((prev) => [
+                ...prev,
+                { id: (Date.now() + 1).toString(), role: "ASSISTANT", content: data.content },
+            ]);
         } catch (error) {
             console.log("ERROR WHILE SENDING: ", error);
-            const isTimeout = axios.isAxiosError(error) && error.code === 'ECONNABORTED';
-            const errorMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'ASSISTANT',
-                content: isTimeout
-                ? "That took too long — try again?"
-                : "Something went wrong. Please try again.",
-            };
-            setQuery(prev => [...prev, errorMessage]);
-        }finally{
+            const isTimeout = axios.isAxiosError(error) && error.code === "ECONNABORTED";
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: (Date.now() + 1).toString(),
+                    role: "ASSISTANT",
+                    content: isTimeout
+                        ? "That took too long — try again?"
+                        : "Something went wrong. Please try again.",
+                },
+            ]);
+        } finally {
             setLoading(false);
         }
-    }
+    };
 
-    const getMessages = async (convId: string) => {
+    const getMessages = async (id: string) => {
         try {
-            console.log("GOT CONVERSATION ID ", convId);
-
             setLoading(true);
-
-            const response = await getMgs(convId);
-            if(query.length > 0) setQuery([]);
-            setMessages(response.data);
-            console.log("CONVERSATION ID MESSAGES  ", response.data);
-
+            const response = await getMgs(id);
+            const list: Msg[] = (response.data ?? []).map((m: any, i: number) => ({
+                id: String(m.id ?? `${id}-${i}`),
+                role: m.role,
+                content: m.content,
+            }));
+            setMessages(list);
+            setConversationId(id);
         } catch (error) {
             console.log("ERROR WHILE GETTING MESSAGES: ", error);
-        }finally{
+        } finally {
             setLoading(false);
         }
-    }
+    };
 
     useEffect(() => {
-        if(convId){
-            console.log("CONVERSATION ID ", convId);
-            
-            getMessages(convId);
-        }
+        if (convId) getMessages(convId);
     }, [convId]);
 
-    const clearCurrentMsg = async () => {
-        try {
-            setLoading(true);
+    const startNewChat = () => {
+        setMessages([]);
+        setConversationId(null);
+        setText("");
+        setLoading(false);
+        router.setParams({ convId: undefined });
+    };
 
-            setMessages([]);
+    const openDrawer = () => {
+        const parent = navigation.getParent<DrawerNavigationProp<any>>();
+        if (parent?.openDrawer) parent.openDrawer();
+        else navigation?.openDrawer();
+    };
 
-        } catch (error) {
-            console.log("ERROR WHILE GETTING MESSAGES: ", error);
-        }finally{
-            setLoading(false);
-        }
-    }
     return (
-        <SafeAreaProvider>
-            <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-                <KeyboardAvoidingView
-                    style={{flex: 1}}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
-                    <View style={query.length > 0 ? styles.queryContent : styles.emptyContent}>
-                            <BlurTargetView ref={targetRef} style={{flex: 1}}>
-                                {query.length > 0 ? (
-                                    <FlatList showsVerticalScrollIndicator={false}
-                                        contentContainerStyle={styles.messageList} 
-                                        ref={flatListRef}
-                                        data={query} 
-                                        keyExtractor={(item) => item.id} 
-                                        renderItem={({item}) => item.role === 'ASSISTANT' ? (
-                                            <ResponseBubble content={item.content}/>
-                                        ) : (
-                                            <UserQuery content={item.content}/>
-                                        )}
+        <View style={styles.container}>
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
 
-                                        ListFooterComponent={
-                                            loading ? <ActivityIndicator size={'small'} color= {colors.text} 
-                                                style={{ marginVertical: hp(1), alignItems: 'flex-start' }}/> : null 
-                                        }
-                                        onContentSizeChange={() => {
-                                            flatListRef.current?.scrollToEnd({ animated: true });
-                                            setTimeout(() => {
-                                                flatListRef.current?.scrollToEnd({ animated: true });
-                                            }, 100);
-                                        }}
-                                    />
-                                ) : messages.length > 0 ? (
-                                    <FlatList showsVerticalScrollIndicator={false}
-                                        contentContainerStyle={styles.messageList} 
-                                        ref={flatListRef}
-                                        data={messages} 
-                                        keyExtractor={(item, index) => item.id ? item.id.toString() : `${item.conversationId || 'msg'}-${index}`}
-                                        renderItem={({item}) => item.role === 'ASSISTANT' ? (
-                                            <ResponseBubble content={item.content}/>
-                                        ) : (
-                                            <UserQuery content={item.content}/>
-                                        )}
-
-                                        ListFooterComponent={
-                                            loading ? <ActivityIndicator size={'small'} color= {colors.text} 
-                                                style={{ marginVertical: hp(1), alignItems: 'flex-start' }}/> : null 
-                                        }
-                                        onContentSizeChange={() => {
-                                            flatListRef.current?.scrollToEnd({ animated: true });
-                                            setTimeout(() => {
-                                                flatListRef.current?.scrollToEnd({ animated: true });
-                                            }, 100);
-                                        }}
-                                    />
+                <BlurTargetView
+                    ref={targetRef}
+                    style={[styles.flex, isEmpty && styles.centered]}
+                >
+                    {isEmpty ? (
+                        <Text style={styles.welcomeText}>Ask anything!</Text>
+                    ) : (
+                        <FlatList
+                            ref={flatListRef}
+                            data={messages}
+                            keyExtractor={(item) => item.id}
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={styles.messageList}
+                            renderItem={({ item }) =>
+                                item.role === "ASSISTANT" ? (
+                                    <ResponseBubble content={item.content} />
                                 ) : (
-                                    <Text style={styles.welcometext}>Ask anything!</Text>
-                                )}
-                            </BlurTargetView>
+                                    <UserQuery content={item.content} />
+                                )
+                            }
+                            ListFooterComponent={
+                                loading ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.text}
+                                        style={styles.loader}
+                                    />
+                                ) : null
+                            }
+                            onContentSizeChange={() =>
+                                flatListRef.current?.scrollToEnd({ animated: true })
+                            }
+                        />
+                    )}
+                </BlurTargetView>
 
-                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
-                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={45} style={styles.drawerButtonWrapper}>
-                                <TouchableOpacity style={styles.drawerButton} onPress={() => {
-                                    const parent = navigation.getParent<DrawerNavigationProp<any>>();
-                                    if (parent?.openDrawer) {
-                                        parent.openDrawer();
-                                    } else {
-                                        navigation?.openDrawer();
-                                    }
-                                }}>
-                                    <Ionicons name='chatbubbles-outline' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
-                                </TouchableOpacity>
-                            </BlurView>
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={fadeColors}
+                    locations={fadeLocations}
+                    style={styles.topFade}
+                />
 
-                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
-                                tint={UIMode === 'dark' ? 'dark' : 'light'} intensity={45} style={[
-                                    styles.newChatButtonWrapper, 
-                                    { top: insets.top + wp(2.5) } 
-                                ]}>
-                                <TouchableOpacity style={styles.newChatButton} onPress={() => {
-                                        clearCurrentMsg()
-                                }}>
-                                    <Ionicons name='create-outline' size={wp(6)} color={colors.drawerbuttonicon}></Ionicons>
-                                </TouchableOpacity>
-                            </BlurView>
-                        
-                            <BlurView blurTarget={targetRef} blurMethod="dimezisBlurView"
-                                intensity={45} tint={UIMode == 'dark' ? 'dark' : 'light'} style={styles.inputWrapper}>
-                                <TouchableOpacity style={[styles.sendButton, !text.trim() && styles.sendButtonOpacity]} 
-                                    activeOpacity={0.5} 
-                                    onPress={handleSend} 
-                                    disabled={!text.trim()}>
-                                    <Ionicons name='arrow-up' size={wp(5)} color={colors.sendbuttonarrow}></Ionicons>
-                                </TouchableOpacity>
-                            
-                                <TextInput style={styles.inputText}
-                                    onChangeText={setText}
-                                    value={text}
-                                    ref={inputGesRef}
-                                    cursorColor={colors.text}
-                                    placeholder="Ask here"
-                                    placeholderTextColor={colors.placeholdertext}
-                                />
-                            </BlurView>
-                    </View>     
-                </KeyboardAvoidingView>
-            </SafeAreaView>
-        </SafeAreaProvider>
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={[fadeColors[2], fadeColors[1], fadeColors[0]]}
+                    locations={fadeLocations}
+                    style={styles.bottomFade}
+                />
+
+                <BlurView
+                    blurTarget={targetRef}
+                    blurMethod="dimezisBlurView"
+                    tint={tint}
+                    intensity={45}
+                    style={[styles.roundButton, styles.leftButton]}
+                >
+                    <TouchableOpacity style={styles.buttonInner} onPress={openDrawer}>
+                        <Ionicons
+                            name="chatbubbles-outline"
+                            size={wp(6)}
+                            color={colors.drawerbuttonicon}
+                        />
+                    </TouchableOpacity>
+                </BlurView>
+
+                <BlurView
+                    blurTarget={targetRef}
+                    blurMethod="dimezisBlurView"
+                    tint={tint}
+                    intensity={45}
+                    style={[styles.roundButton, styles.rightButton]}
+                >
+                    <TouchableOpacity style={styles.buttonInner} onPress={startNewChat}>
+                        <Ionicons
+                            name="create-outline"
+                            size={wp(6)}
+                            color={colors.drawerbuttonicon}
+                        />
+                    </TouchableOpacity>
+                </BlurView>
+
+                <BlurView
+                    blurTarget={targetRef}
+                    blurMethod="dimezisBlurView"
+                    tint={tint}
+                    intensity={45}
+                    style={styles.inputWrapper}
+                >
+                    <TouchableOpacity
+                        style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
+                        activeOpacity={0.5}
+                        onPress={handleSend}
+                        disabled={!text.trim()}
+                    >
+                        <Ionicons name="arrow-up" size={wp(5)} color={colors.sendbuttonarrow} />
+                    </TouchableOpacity>
+
+                    <TextInput
+                        style={styles.inputText}
+                        onChangeText={setText}
+                        value={text}
+                        cursorColor={colors.text}
+                        placeholder="Ask here"
+                        placeholderTextColor={colors.placeholdertext}
+                    />
+                </BlurView>
+            </KeyboardAvoidingView>
+        </View>
     );
 }
-function getStyles(colors: ReturnType<typeof useTheme>) {
+
+function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
+    const buttonTop = insets.top + wp(2.5);
+    const buttonHeight = hp(5);
+    const inputBottom = insets.bottom + hp(3.5);
+    const inputHeight = wp(12);
+
+    const topFadeHeight = buttonTop + buttonHeight + hp(4);
+    const bottomFadeHeight = inputBottom + inputHeight + hp(5);
+
     return StyleSheet.create({
+        flex: {
+            flex: 1,
+        },
         container: {
             flex: 1,
             backgroundColor: colors.background,
         },
-        emptyContent:{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: wp(2),
-            position: 'relative',
+        centered: {
+            alignItems: "center",
+            justifyContent: "center",
         },
-        queryContent: {
-            flex: 1,
-            justifyContent: 'center',
-            padding: wp(2),
-            position: 'relative',
-        },
-        welcometext: {
+        welcomeText: {
             fontSize: wp(7),
             color: colors.text,
-            fontWeight: '400',
-            textAlignVertical: 'center'
+            fontFamily: "News-Regular",
+        },
+        messageList: {
+            paddingHorizontal: wp(3),
+            paddingTop: buttonTop + buttonHeight + hp(2),
+            paddingBottom: inputBottom + inputHeight + hp(3),
+            gap: hp(3),
+        },
+        loader: {
+            marginVertical: hp(1),
+            alignSelf: "flex-start",
+        },
+        topFade: {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topFadeHeight,
+        },
+        bottomFade: {
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: bottomFadeHeight,
+        },
+        roundButton: {
+            position: "absolute",
+            top: buttonTop,
+            height: buttonHeight,
+            width: wp(13),
+            borderRadius: wp(8),
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+        },
+        leftButton: {
+            left: wp(2.5),
+        },
+        rightButton: {
+            right: wp(2.5),
+        },
+        buttonInner: {
+            flex: 1,
+            width: "100%",
+            alignItems: "center",
+            justifyContent: "center",
         },
         inputWrapper: {
-            flexDirection: 'row-reverse',
-            alignItems: 'center',
-            width: wp(95),
-            alignSelf: 'center',
-            position: 'absolute',
-            zIndex: 10,
-            bottom: hp(2.5),
-            paddingRight: wp(2.5),
+            position: "absolute",
+            left: wp(2.5),
+            right: wp(2.5),
+            bottom: inputBottom,
+            flexDirection: "row-reverse",
+            alignItems: "center",
+            paddingRight: wp(1.5),
             borderColor: colors.border,
             borderWidth: wp(0.5),
             borderRadius: wp(8),
-            overflow: 'hidden'
+            overflow: "hidden",
+            zIndex: 10,
         },
         inputText: {
             flex: 1,
-            height: wp(12),
+            height: inputHeight,
             paddingLeft: wp(5),
             fontSize: wp(4),
-            borderRadius: wp(2),
+            fontFamily: "News-Regular",
             color: colors.text,
         },
         sendButton: {
             height: wp(9),
             width: wp(9),
             borderRadius: wp(5),
-            alignItems: 'center',
-            justifyContent: 'center',
+            alignItems: "center",
+            justifyContent: "center",
             backgroundColor: colors.sendbuttonbackground,
         },
-        sendButtonOpacity: {
-            opacity: 0.7
+        sendButtonDisabled: {
+            opacity: 0.7,
         },
-        drawerButtonWrapper: {
-            top: wp(2.5),
-            left: wp(2.5),
-            height: hp(5),
-            width: wp(13),
-            borderRadius: wp(8),
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            position: 'absolute',
-            zIndex: 10
-        },
-        drawerButton: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        newChatButtonWrapper: {
-            right: wp(2.5),
-            height: hp(5),
-            width: wp(13),
-            borderRadius: wp(8),
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'absolute',
-            zIndex: 10
-        },
-        newChatButton: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        messageList: {
-            paddingHorizontal: wp(1),
-            paddingTop: hp(5),
-            paddingBottom: hp(13),
-            gap: hp(3),
-        },
-        fadeOverlay: {
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: hp(6),
-        },
-        
     });
-
 }

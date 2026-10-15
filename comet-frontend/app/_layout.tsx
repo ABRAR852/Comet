@@ -2,12 +2,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
-import { useRef } from 'react';
-import { BlurTargetView } from 'expo-blur';
 import { MyDrawer } from '../components/Drawer';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
+import { useFonts } from 'expo-font';
+import { fonts } from '../components/Font';
 
 export default function RootLayout() {
   const schema = useColorScheme();
+  const [loaded] = useFonts(fonts);
+  if (!loaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -18,28 +21,24 @@ export default function RootLayout() {
             headerShown: false,
 
             drawerStyle: {
-              backgroundColor: '#d8d8d8',
-              width: 250,
+              backgroundColor: '#808080',
+              width: wp(60),
             },
 
-            // 2. Active Tab Highlight
-            drawerActiveTintColor: '#ffffff',
-            drawerActiveBackgroundColor: '#8a8a8a',
+            drawerActiveTintColor: '#df0808',
+            drawerActiveBackgroundColor: '#e60505',
 
-            // 3. Inactive Tabs
             drawerInactiveTintColor: '#9ca3af',
             drawerInactiveBackgroundColor: 'transparent',
 
-            // 4. Tab Item Shape & Spacing
             drawerItemStyle: {
-              borderRadius: 8,
-              marginVertical: 4,
-              paddingHorizontal: 8,
+              borderRadius: wp(4),
+              marginVertical: wp(2),
+              paddingHorizontal: wp(4),
             },
 
-            // 5. Label Text Typography
             drawerLabelStyle: {
-              fontSize: 15,
+              fontSize: wp(8),
               fontWeight: '600',
             },
           }}
