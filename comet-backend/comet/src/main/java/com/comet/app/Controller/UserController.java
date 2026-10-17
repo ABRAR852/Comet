@@ -9,9 +9,12 @@ import com.comet.app.Service.ConvService;
 import com.comet.app.Service.MsgService;
 import com.comet.app.Tools.WeatherToolService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/User")
@@ -47,13 +50,9 @@ public class UserController {
         }
     }
 
-    @PostMapping("/askQuery/flux") // API for user queries
-    public Flux<String> askQueryFlux(@RequestBody MessageDTO userQuery){
-        try {
-            return aiMessageService.askAiFlux(userQuery);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    @PostMapping(value = "/askQueryFlux", produces = MediaType.TEXT_EVENT_STREAM_VALUE) // API for user queries
+    public Flux<Map<String, String>> askQueryFlux(@RequestBody MessageDTO userQuery){
+        return aiMessageService.askAiFlux(userQuery);
     }
 
     @PostMapping("/create-table")

@@ -51,7 +51,7 @@ public class ConvRepository {
 
     public List<ConversationDTO> getAllConv() {
         try {
-            return jdbcTemplate.query("SELECT * FROM conversations",
+            return jdbcTemplate.query("SELECT * FROM conversations ORDER BY CREATED_AT DESC",
                         new BeanPropertyRowMapper<>(ConversationDTO.class));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -99,7 +99,8 @@ public class ConvRepository {
 
                 String cleanTitle = rawTitle.replaceAll("^\"|\"$", "").trim();
 
-                jdbcTemplate.update("INSERT INTO conversations (id, title) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title", UUID.fromString(convId), cleanTitle);
+                jdbcTemplate.update("INSERT INTO conversations (id, title) VALUES (?, ?) ON CONFLICT (id) " +
+                        "DO UPDATE SET title = EXCLUDED.title", UUID.fromString(convId), cleanTitle);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
