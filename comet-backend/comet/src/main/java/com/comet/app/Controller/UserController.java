@@ -7,11 +7,11 @@ import com.comet.app.Repository.MsgRepository;
 import com.comet.app.Service.AiService;
 import com.comet.app.Service.ConvService;
 import com.comet.app.Service.MsgService;
-import com.comet.app.Tools.WeatherToolService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
@@ -24,21 +24,22 @@ public class UserController {
     private final CrudRepository crudRepository;
     private final MsgRepository msgRepository;
     private final ConvRepository convRepository;
-    private final WeatherToolService weatherToolService;
     private final ConvService convService;
     private final MsgService msgService;
+    private final RestClient restClient;
+
     public UserController(AiService aiMessageService,
                           CrudRepository crudRepository,
                           MsgRepository msgRepository, ConvRepository convRepository,
-                          WeatherToolService weatherToolService, ConvService convService,
-                          MsgService msgService) {
+                          ConvService convService,
+                          MsgService msgService, RestClient restClient) {
         this.aiMessageService = aiMessageService;
         this.crudRepository = crudRepository;
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
-        this.weatherToolService = weatherToolService;
         this.convService = convService;
         this.msgService = msgService;
+        this.restClient = restClient;
     }
 
     @PostMapping("/askQuery") // API for user queries
@@ -50,7 +51,7 @@ public class UserController {
         }
     }
 
-    @PostMapping(value = "/askQueryFlux", produces = MediaType.TEXT_EVENT_STREAM_VALUE) // API for user queries
+    @PostMapping(value = "/askQueryFlux", produces = MediaType.TEXT_EVENT_STREAM_VALUE) // Streaming API for user queries
     public Flux<Map<String, String>> askQueryFlux(@RequestBody MessageDTO userQuery){
         return aiMessageService.askAiFlux(userQuery);
     }
@@ -100,16 +101,6 @@ public class UserController {
         }
     }
 
-    @GetMapping("/get-weather/{cityName}")
-    public ResponseEntity<?> getWeather(@PathVariable String cityName){
-        try {
-            String weather = weatherToolService.getWeather(cityName);
-            return new ResponseEntity<>(weather, HttpStatus.OK);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @GetMapping("/get-conv")
     public ResponseEntity<?> getConversations(){
         try {
@@ -134,6 +125,20 @@ public class UserController {
     public ResponseEntity<?> deleteTask(@PathVariable int id){
         try {
             return crudRepository.deleteTask(id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @GetMapping("/googleSearch")
+    public ResponseEntity<?> googleSearch(){
+        try {
+
+            ResponseEntity<String> entity = restClient.get()
+                    .uri("google/search?text=weather Hyderabad&extract=1&format=text&mode=fast")
+                    .retrieve()
+                    .toEntity(String.class);
+            return new ResponseEntity<>(entity.getBody(), entity.getStatusCode());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

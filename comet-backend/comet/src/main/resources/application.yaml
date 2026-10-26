@@ -7,13 +7,13 @@ spring:
   application:
     name: comet
   ai:
-    openai:
-      api-key: ${GROQ_API_KEY}
-      base-url: https://api.groq.com/openai/v1
-      temperature: 0.5
-      top-p: 0.9
-      chat:
-        model: openai/gpt-oss-120b
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: gemini-3.5-flash-lite
+            thinking-level: MEDIUM
   mcp:
     server:
       name: comet-tools-server
@@ -23,5 +23,3 @@ spring:
 logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
-tavilysearch:
-  api-key: ${TAVILY_API_KEY}

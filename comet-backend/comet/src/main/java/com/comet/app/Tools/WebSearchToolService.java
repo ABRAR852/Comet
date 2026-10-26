@@ -1,75 +1,100 @@
 package com.comet.app.Tools;
 
-import com.comet.app.Entity.SearchDepth;
 import com.comet.app.Entity.TimeRange;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.annotation.JsonSerialize;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.net.URI;
+import java.text.DateFormat;
+import java.time.LocalDate;
 
+@Slf4j
 @Service
 public class WebSearchToolService {
 
 
     private final RestClient restClient;
 
-    public WebSearchToolService(@Value("${tavilysearch.api-key}") String apiKey) {
-        this.restClient = RestClient.builder()
-                .baseUrl("https://api.tavily.com")
-                .defaultHeader("Authorization", "Bearer " + apiKey)
-                .defaultHeader("Content-Type", "Application/json")
-                .build();
+    public WebSearchToolService(RestClient restClient) {
+        this.restClient = restClient;
     }
 
-    @Tool(name = "web_search", description = "Search the web for current, real-world facts or news.")
-    public String webSearch (@ToolParam(description = "The target web search query") String query,
-                             @ToolParam(description = "basic for fast lookups (~1s), advanced for deep research (~3-5s)") SearchDepth searchDepth,
-                             @ToolParam(description = "Add boolean value if you want Ai include answer for example: true or false") boolean include_answer,
-                             @ToolParam(description = "Max search results (default 3, max 5)", required = false) Integer max_results,
-                             @ToolParam(description = "Optional time boundary: day, week, month, or year", required = false) TimeRange timeRange){
+    private static boolean has(String s){
+        return s != null && !s.isBlank() && !s.equalsIgnoreCase("null");
+    }
+
+    @Tool(name = "web_search", description = "Search the web for current, real-world facts, weather or news.")
+    public String webSearch (@ToolParam(description = "The target web search engine (Google, DuckDuckGo and Bing)") String searchEngine,
+                             @ToolParam(description = "The target web search type (search means normal web search which gets websites OR image for its URL's)") String searchType,
+                             @ToolParam(description = "The target web search query") String query,
+                             @ToolParam(description = "OPTIONAL Filter site like (github.com, accuWeather.com or aljazeera.com etc..) lowercase", required = false) String siteFilter,
+                             @ToolParam(description = "Add 1 which gets URL content of first site if you want more URL extractions for advanced deep research (~2-3) would be good tis not OPTIONAL", required = false) Integer extractNum,
+                             @ToolParam(description = "Add boolean value if you want Ai summary fastest way to get accurate and reliable baked summary", required = false) Boolean aiSummary,
+                             @ToolParam(description = "OPTIONAL Max search results (default 6 to 7, max 10 but takes time) this only works with search engines like Bing and DuckDuckGo", required = false) Integer max_results,
+                             @ToolParam(description = "OPTIONAL default is json for object type lookups , text for clean context retrieval", required = false) String format,
+                             @ToolParam(description = "OPTIONAL time boundary: eg; (20250101..20250131) (20250101 for start date)  (.. for range separator) (20251231 for end date)", required = false) String timeRange){
         try {
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("query", query);
-            body.put("search_depth", searchDepth.name().toLowerCase());
-            body.put("include_answer", include_answer);
-            body.put("max_results", max_results);
+//            Map<String, Object> body = new HashMap<>();
+//            body.put("searchEngine", searchEngine);
+//            body.put("query", query);
+//            body.put("siteFilter", siteFilter);
+//            body.put("extract_URL", extract_URL);
+//            body.put("include_answer", include_answer);
+//            body.put("max_results", max_results);
+//            body.put("features", true);
+//
+//            if(timeRange != null){
+//                body.put("time_range", timeRange.name().toLowerCase());
+//            }
 
-            if(timeRange != null){
-                body.put("time_range", timeRange.name().toLowerCase());
-            }
+            var uri =  restClient.get()
+                    .uri(uriBuilder -> {
+                        uriBuilder
+                                .path("/" + searchEngine + "/" + searchType)
+                                .queryParam("text", query);
 
-            Map<String, Object> response = restClient.post()
-                    .uri("/search")
-                    .body(body)
-                    .retrieve()
-                    .body(Map.class);
+                        if(extractNum != null && extractNum > 0) uriBuilder.queryParam("extract", extractNum);
+                        if (has(format)) uriBuilder.queryParam("format", format);
+                        if (has(siteFilter)) uriBuilder.queryParam("site", siteFilter);
+                        if (Boolean.TRUE.equals(aiSummary)) uriBuilder.queryParam("features", true);
+                        if (max_results != null && max_results > 0) uriBuilder.queryParam("limit", max_results);
+                        if (has(timeRange)) uriBuilder.queryParam("date", timeRange);
 
-            StringBuilder sb = new StringBuilder();
+                        URI build = uriBuilder.build();
+                        System.out.println("URI " + build);
+                        return build;
+                    });
 
-            String answer = (String) response.get("answer");
-            if (answer != null && !answer.isEmpty()){
-                sb.append("Direct Answer: ").append(answer).append("\n\n");// use to feed important in-depth context to AI
-            }
-
-            List<Map<String, Object>> webResults = (List<Map<String, Object>>) response.get("results");
-            if(webResults != null){
-                for(Map<String, Object> res : webResults){
-                    sb.append("Title : ").append(res.get("title")).append("\n");
-                    sb.append("URL : ").append(res.get("url")).append("\n");
-                    sb.append("Content : ").append(res.get("content")).append("\n");// to feed web content to AI
-                }
-            }
-
-            return sb.toString();
+            String body = uri.retrieve().body(String.class);
+            System.out.println("RESPONSE " + body);
+            return body;
+//            StringBuilder sb = new StringBuilder();
+//
+//            String answer = (String) response.get("answer");
+//            if (answer != null && !answer.isEmpty()){
+//                sb.append("Direct Answer: ").append(answer).append("\n\n");// use to feed important in-depth context to AI
+//            }
+//
+//            List<Map<String, Object>> webResults = (List<Map<String, Object>>) response.get("results");
+//            if(webResults != null){
+//                for(Map<String, Object> res : webResults){
+//                    sb.append("Title : ").append(res.get("title")).append("\n");
+//                    sb.append("URL : ").append(res.get("url")).append("\n");
+//                    sb.append("Content : ").append(res.get("content")).append("\n");// to feed web content to AI
+//                }
+//            }
+//
+//            return sb.toString();
 
         } catch (RuntimeException e) {
-            e.printStackTrace();
+            log.warn(e.getMessage());
             return "Web search failed: " + e.getMessage();
         }
 

@@ -24,15 +24,15 @@ public class AiService {
 
 
     private final ChatClient chatClient;
-    private final ToolCallbackProvider webSearchTool;
+    private final ToolCallbackProvider toolsCall;
     private final MsgRepository msgRepository;
     private final ConvRepository convRepository;
 
     public AiService(ChatClient.Builder chatClientBuilder,
-                     ToolCallbackProvider webSearchTool,
+                     ToolCallbackProvider toolsCall,
                      MsgRepository msgRepository, ConvRepository convRepository){
         this.chatClient = chatClientBuilder.defaultAdvisors(new SimpleLoggerAdvisor()).build();
-        this.webSearchTool = webSearchTool;
+        this.toolsCall = toolsCall;
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
     }
@@ -131,9 +131,9 @@ public class AiService {
 
             ChatResponse content = chatClient.prompt()
                     .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", time))
-                    .user(userQuery.getContent())
-                    .tools(webSearchTool)
                     .messages(msgHistory)
+                    .user(userQuery.getContent())
+                    .tools(toolsCall)
                     .call()
                     .chatResponse();
 
@@ -190,9 +190,9 @@ public class AiService {
 
              Flux<Map<String, String>> tokens = chatClient.prompt()
                     .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", time))
+                     .messages(msgHistory)
                     .user(userQuery.getContent())
-                    .tools(webSearchTool)
-                    .messages(msgHistory)
+                    .tools(toolsCall)
                     .stream()
                     .content()
                     .doOnNext(full::append)
