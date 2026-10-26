@@ -425,7 +425,7 @@ export default function ChatScreen() {
                         intensity={45}
                         style={styles.topButtonWrapper}
                     >
-                        <TouchableOpacity  onPress={jumpButton}>
+                        <TouchableOpacity onPress={jumpButton}>
                             <Svg style={styles.topButton} viewBox="0 0 524 835" >
 
                                 <Path d= "M17.2089 574.062C17.2089 574.062 167.385 577.381 209.738 521.26C252.092 465.138 260.884 30.5154 260.884 30.5154C260.884 30.5154 252.097 465.412 313.456 521.109C368.618 576.815 506.138 573.351 506.138 573.351C506.138 573.351 368.608 570.288 313.609 626.154C258.609 682.02 262.034 821.301 262.034 821.301C262.034 821.301 265.053 682.011 209.891 626.305C154.729 570.599 17.2089 574.062 17.2089 574.062Z" fill={colors.text}/>

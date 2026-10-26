@@ -28,8 +28,8 @@ function getStyles(colors: ReturnType<typeof useTheme>) {
         userBubble: {
             alignSelf: 'flex-end',
             maxWidth: wp(80),
-            marginTop: hp(3),
-            marginBottom: hp(3),
+            marginTop: hp(2),
+            marginBottom: hp(2),
             borderTopRightRadius: wp(5),
             borderTopLeftRadius: wp(5),
             borderBottomLeftRadius: wp(5),

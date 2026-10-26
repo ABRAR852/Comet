@@ -28,22 +28,40 @@ export async function streamChat({ conversationId, content, signal, onMeta, onTo
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  const handleEvent = (evt: string): boolean => {
+    const data = evt
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => l.slice(5).replace(/^ /, ''))
+      .join('\n');
 
-    const events = buffer.split('\n\n');
-    buffer = events.pop() ?? '';
+    if (!data) return false;
+    if (data === '[DONE]') return true;
 
-    for (const evt of events) {
-      const line = evt.split('\n').find((l) => l.startsWith('data: '));
-      if (!line) continue;
-      const data = line.slice(6);
-      if (data === '[DONE]') return;
+    try {
       const parsed = JSON.parse(data);
       if (parsed.conversationId) onMeta(parsed);
       if (parsed.token) onToken(parsed.token);
+    } catch {
+      console.log('SSE parse skip:', data);
+    }
+    return false;
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    buffer += chunk;
+
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() ?? '';
+
+    for (const evt of events) {
+      if (handleEvent(evt)) return;
     }
   }
+
+  if (buffer.trim()) handleEvent(buffer);
 }
