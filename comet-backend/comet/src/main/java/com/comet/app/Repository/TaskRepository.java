@@ -9,11 +9,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 @Repository
-public class CrudRepository {
+public class TaskRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public CrudRepository(JdbcTemplate jdbcTemplate) {
+    public TaskRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -32,10 +32,10 @@ public class CrudRepository {
     public ResponseEntity<?> addTask (Task task){
         try {
             if (task.getTask() != null && task.getTaskDescription() != null){
-                int update = jdbcTemplate.update("INSERT INTO Todo_list (task, task_description) " +
-                        "VALUES (?, ?)", task.getTask(), task.getTaskDescription());
+                int update = jdbcTemplate.update("INSERT INTO Todo_list (task, task_description, due_at) " +
+                        "VALUES (?, ?, ?)", task.getTask(), task.getDueAt(), task.getTaskDescription());
                 if(update >= 1){
-                    return new ResponseEntity<>("Task " + task.getTask() + " add", HttpStatus.CREATED);
+                    return new ResponseEntity<>("Task :" + task.getTask() + " add", HttpStatus.CREATED);
                 }else {
                     return new ResponseEntity<>("Can't add "+ task.getTask(), HttpStatus.NOT_MODIFIED);
                 }
@@ -50,13 +50,14 @@ public class CrudRepository {
 
     public ResponseEntity<?> getTasks () {
         try {
-            String sql = "SELECT date_time, task, task_description, task_done FROM todo_list";
+            String sql = "SELECT date_time, task, task_description, task_done, due_at FROM todo_list";
             List<Task> tasks = jdbcTemplate.query(sql, (rs, rowNum) -> {
                 Task task = new Task();
                 task.setDateTime(rs.getObject("date_time", OffsetDateTime.class));
                 task.setTask(rs.getString("task"));
                 task.setTaskDescription(rs.getString("task_description"));
                 task.setTaskDone(rs.getBoolean("task_done"));
+                task.setDueAt(OffsetDateTime.parse(rs.getString("due_at")));
                 return task;
             });
             if (!tasks.isEmpty()){
@@ -71,7 +72,7 @@ public class CrudRepository {
 
     public ResponseEntity<?> getTasksWithId () {
         try {
-            String sql = "SELECT id, date_time, task, task_description, task_done FROM todo_list";
+            String sql = "SELECT id, date_time, task, task_description, task_done, due_at FROM todo_list";
             List<Task> tasks = jdbcTemplate.query(sql, (rs, rowNum) -> {
                 Task task = new Task();
                 task.setId(rs.getInt("id"));
@@ -79,6 +80,7 @@ public class CrudRepository {
                 task.setTask(rs.getString("task"));
                 task.setTaskDescription(rs.getString("task_description"));
                 task.setTaskDone(rs.getBoolean("task_done"));
+                task.setDueAt(OffsetDateTime.parse(rs.getString("due_at")));
                 return task;
             });
             if (!tasks.isEmpty()){

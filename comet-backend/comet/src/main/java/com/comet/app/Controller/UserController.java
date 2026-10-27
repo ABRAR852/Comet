@@ -2,12 +2,11 @@ package com.comet.app.Controller;
 import com.comet.app.Entity.MessageDTO;
 import com.comet.app.Entity.Task;
 import com.comet.app.Repository.ConvRepository;
-import com.comet.app.Repository.CrudRepository;
+import com.comet.app.Repository.TaskRepository;
 import com.comet.app.Repository.MsgRepository;
 import com.comet.app.Service.AiService;
 import com.comet.app.Service.ConvService;
 import com.comet.app.Service.MsgService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +20,7 @@ import java.util.Map;
 public class UserController {
 
     private final AiService aiMessageService;
-    private final CrudRepository crudRepository;
+    private final TaskRepository taskRepository;
     private final MsgRepository msgRepository;
     private final ConvRepository convRepository;
     private final ConvService convService;
@@ -29,12 +28,12 @@ public class UserController {
     private final RestClient restClient;
 
     public UserController(AiService aiMessageService,
-                          CrudRepository crudRepository,
+                          TaskRepository taskRepository,
                           MsgRepository msgRepository, ConvRepository convRepository,
                           ConvService convService,
                           MsgService msgService, RestClient restClient) {
         this.aiMessageService = aiMessageService;
-        this.crudRepository = crudRepository;
+        this.taskRepository = taskRepository;
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
         this.convService = convService;
@@ -59,7 +58,7 @@ public class UserController {
     @PostMapping("/create-table")
     public String createTable(){
         try {
-            return crudRepository.createTable();
+            return taskRepository.createTable();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -86,7 +85,7 @@ public class UserController {
     @PostMapping("/add-task")
     public ResponseEntity<?> addTask(@RequestBody Task task){
         try {
-            return crudRepository.addTask(task);
+            return taskRepository.addTask(task);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -95,7 +94,7 @@ public class UserController {
     @GetMapping("/get-tasks")
     public ResponseEntity<?> getTasks(){
         try {
-            return crudRepository.getTasks();
+            return taskRepository.getTasks();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -124,7 +123,7 @@ public class UserController {
     @PostMapping("/delete-task/{id}")
     public ResponseEntity<?> deleteTask(@PathVariable int id){
         try {
-            return crudRepository.deleteTask(id);
+            return taskRepository.deleteTask(id);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

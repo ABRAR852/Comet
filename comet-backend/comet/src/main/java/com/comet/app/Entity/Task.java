@@ -11,6 +11,7 @@ public class Task {
     private OffsetDateTime dateTime;
     private String task;
     private String taskDescription;
+    private OffsetDateTime dueAt;
     private Boolean taskDone;
 
 }
