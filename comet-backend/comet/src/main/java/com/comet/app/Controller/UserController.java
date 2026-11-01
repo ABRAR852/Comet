@@ -90,23 +90,23 @@ public class UserController {
         }
     }
 
-    @PostMapping("/add-task")
-    public ResponseEntity<?> addTask(@RequestBody Task task){
-        try {
-            return taskRepository.addTask(task);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    @PostMapping("/add-task")
+//    public ResponseEntity<?> addTask(@RequestBody Task task){
+//        try {
+//            return taskRepository.addTask(task);
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
-    @GetMapping("/get-tasks")
-    public ResponseEntity<?> getTasks(){
-        try {
-            return taskRepository.getTasks();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    @GetMapping("/get-tasks")
+//    public ResponseEntity<?> getTasks(){
+//        try {
+//            return taskRepository.getTasks();
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     @GetMapping("/get-conv")
     public ResponseEntity<?> getConversations(){
@@ -128,14 +128,14 @@ public class UserController {
         }
     }
 
-    @PostMapping("/delete-task/{id}")
-    public ResponseEntity<?> deleteTask(@PathVariable int id){
-        try {
-            return taskRepository.deleteTask(id);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    @PostMapping("/delete-task/{id}")
+//    public ResponseEntity<?> deleteTask(@PathVariable int id){
+//        try {
+//            return taskRepository.deleteTask(id);
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     @GetMapping("/googleSearch")
     public ResponseEntity<?> googleSearch(){
