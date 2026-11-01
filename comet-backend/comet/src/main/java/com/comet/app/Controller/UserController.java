@@ -7,6 +7,8 @@ import com.comet.app.Repository.MsgRepository;
 import com.comet.app.Service.AiService;
 import com.comet.app.Service.ConvService;
 import com.comet.app.Service.MsgService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/User")
 public class UserController {
@@ -39,6 +42,11 @@ public class UserController {
         this.convService = convService;
         this.msgService = msgService;
         this.restClient = restClient;
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<String> health(){
+        return ResponseEntity.ok("GOOD");
     }
 
     @PostMapping("/askQuery") // API for user queries
