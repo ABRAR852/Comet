@@ -1,0 +1,62 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "comet-backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: comet-513005
+  REGION: asia-south1
+  SERVICE: comet-backend
+  IMAGE: asia-south1-docker.pkg.dev/comet-513005/comet/comet-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/858583538886/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: comet-deployer@comet-513005.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          docker build -t $IMAGE:${{ github.sha }} comet-backend/comet
+          docker push $IMAGE:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          secrets: |
+            DB_URL=DB_URL:latest
+            DB_USERNAME=DB_USERNAME:latest
+            DB_PASSWORD=DB_PASSWORD:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+          flags: >-
+            --service-account=comet-backend@comet-513005.iam.gserviceaccount.com
+            --allow-unauthenticated
+            --memory=1Gi
+            --cpu=1
+            --min-instances=0
+            --max-instances=5
+            --cpu-boost
+            --timeout=300

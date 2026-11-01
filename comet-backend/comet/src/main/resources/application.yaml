@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require
-    username: postgres.lrytyljexiglmrscjqjc
-    password: UV8tyWUAwIfcJ6Ij
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   application:
     name: comet
@@ -23,3 +23,6 @@ spring:
 logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
+openserp:
+  base-url: ${OPENSERP_URL:http://127.0.0.1:7000}
+  auth-enabled: ${OPENSERP_AUTH_ENABLED:false}
