@@ -174,7 +174,10 @@ export default function ChatScreen() {
         } catch (error) {
             console.log("ERROR WHILE STREAMING: ", error);
             if (!controller.signal.aborted) {
-                queue += "\n\nSomething went wrong. Please try again.";
+                setTimeout(() => {
+                    queue += "\n\nSomething went wrong. Please try again.";
+                }, 1000)
+                
             }
         } finally {
             await waitForDrain();

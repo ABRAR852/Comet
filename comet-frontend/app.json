@@ -3,7 +3,7 @@
     "scheme": "comet-ai",
     "name": "Comet",
     "slug": "comet",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/light_icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.rtx9090.ca",
+      "package": "com.comet.ai",
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
