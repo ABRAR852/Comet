@@ -24,5 +24,5 @@ logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
 openserp:
-  base-url: ${OPENSERP_URL:http://127.0.0.1:7000}
+  base-url: ${OPENSERP_URL:https://task-emporium-glorious.ngrok-free.dev}
   auth-enabled: ${OPENSERP_AUTH_ENABLED:false}
