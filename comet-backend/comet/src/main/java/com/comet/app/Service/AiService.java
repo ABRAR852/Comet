@@ -11,8 +11,8 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-
-import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +36,33 @@ public class AiService {
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
     }
+
+    // local time context for llm
+    private static String now() {
+        return ZonedDateTime.now(ZoneId.of("Asia/Kolkata"))
+                .format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy hh:mm a z"));
+    }
+
+    private void saveExchange(UUID raw, String userContent, String answer) {
+        if (answer.isBlank()) return;
+
+        Message userMsg = new Message();
+        userMsg.setConversationId(raw);
+        userMsg.setContent(userContent);
+        userMsg.setRole(MessageRole.USER);
+
+        Message aiMsg = new Message();
+        aiMsg.setConversationId(raw);
+        aiMsg.setContent(answer);
+        aiMsg.setRole(MessageRole.ASSISTANT);
+
+        if (convRepository.getConvTitleById(raw.toString())) {
+            convRepository.addConvTitle(raw.toString(), userContent, answer);
+        }
+        convRepository.addConv(raw);
+        msgRepository.addMsg(userMsg, aiMsg);
+    }
+
     private  String SYSTEM_PROMPT() {
         return """
             You are Comet, a personal AI assistant in a mobile app. Sharp, warm, exact: a brilliant friend with deep expertise who tells the truth and doesn't waste time. Priorities in order: correct, useful, clear, kind.
@@ -139,10 +166,9 @@ public class AiService {
             if(msgHistory == null){
                 msgHistory = List.of();
             }
-            String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy HH:mm:ss")); // local time context for llm
 
             ChatResponse content = chatClient.prompt()
-                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", time))
+                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", now()))
                     .messages(msgHistory)
                     .user(userQuery.getContent())
                     .tools(toolsCall)
@@ -193,15 +219,12 @@ public class AiService {
             if(msgHistory == null){
                 msgHistory = List.of();
             }
-            String time = LocalDateTime.now()
-                    .format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy HH:mm:ss")); // local time context for llm
 
             StringBuilder full = new StringBuilder();
 
             Flux<Map<String, String>> meta = Flux.just(Map.of("conversationId", raw.toString()));
-
              Flux<Map<String, String>> tokens = chatClient.prompt()
-                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", time))
+                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", now()))
                      .messages(msgHistory)
                     .user(userQuery.getContent())
                     .tools(toolsCall)
@@ -209,64 +232,8 @@ public class AiService {
                     .content()
                     .doOnNext(full::append)
                     .map(t -> Map.of("token", t))
-                    .doOnComplete(() -> {
-                        try {
-                            String answer = full.toString();
-
-                            if(answer.isBlank()) return;
-
-                            String userContent = userQuery.getContent();
-                            Message userMsg = new Message(); // USER MESSAGE
-                            userMsg.setConversationId(raw);
-                            userMsg.setContent(userContent);
-                            userMsg.setRole(MessageRole.USER);
-
-                            Message aiMsg = new Message(); // ASSISTANT MESSAGE
-                            aiMsg.setConversationId(raw);
-                            aiMsg.setContent(answer);
-                            aiMsg.setRole(MessageRole.ASSISTANT);
-
-                            if(convRepository.getConvTitleById(raw.toString())){
-                                convRepository.addConvTitle(raw.toString(), userQuery.getContent(), answer);
-                            }
-
-                            convRepository.addConv(raw); // SAVES CONVERSATION INTO DATABASE
-                            msgRepository.addMsg(userMsg, aiMsg); // SAVES MESSAGES INTO DATABASE
-
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-
-                    })
-                     .doOnCancel(() -> {
-                         try {
-
-                             String answer = full.toString();
-
-                             if(answer.isBlank()) return;
-
-                             String userContent = userQuery.getContent();
-                             Message userMsg = new Message(); // USER MESSAGE
-                             userMsg.setConversationId(raw);
-                             userMsg.setContent(userContent);
-                             userMsg.setRole(MessageRole.USER);
-
-                             Message aiMsg = new Message(); // ASSISTANT MESSAGE
-                             aiMsg.setConversationId(raw);
-                             aiMsg.setContent(answer);
-                             aiMsg.setRole(MessageRole.ASSISTANT);
-
-                             if(convRepository.getConvTitleById(raw.toString())){
-                                 convRepository.addConvTitle(raw.toString(), userQuery.getContent(), answer);
-                             }
-
-                             convRepository.addConv(raw); // SAVES CONVERSATION INTO DATABASE
-                             msgRepository.addMsg(userMsg, aiMsg); // SAVES MESSAGES INTO DATABASE
-
-                         } catch (Exception e) {
-                             throw new RuntimeException(e);
-                         }
-                     })
+                    .doOnComplete(() -> saveExchange(raw, userQuery.getContent(), full.toString()))
+                     .doOnCancel(() -> saveExchange(raw, userQuery.getContent(), full.toString()))
                      .onErrorResume(e -> {
                          log.error("stream error: ", e);
                          return Flux.just(Map.of("token", "\n\nSomething went wrong. Please try again"));
