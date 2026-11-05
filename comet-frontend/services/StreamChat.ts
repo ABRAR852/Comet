@@ -9,9 +9,9 @@ type Args = {
 };
 
 export async function streamChat({ conversationId, content, signal, onMeta, onToken }: Args) {
-  //https://oxidimetric-unsolicited-natashia.ngrok-free.dev
+  //https://comet-backend-858583538886.asia-south1.run.app/User/askQueryFlux
   const res = await fetch(
-    'https://comet-backend-858583538886.asia-south1.run.app/User/askQueryFlux',
+    'https://oxidimetric-unsolicited-natashia.ngrok-free.dev/User/askQueryFlux',
     {
       method: 'POST',
       headers: {

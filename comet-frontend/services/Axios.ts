@@ -1,7 +1,7 @@
 import axios from "axios";
-//https://oxidimetric-unsolicited-natashia.ngrok-free.dev
+//https://comet-backend-858583538886.asia-south1.run.app
 const api = axios.create({
-        baseURL: 'https://comet-backend-858583538886.asia-south1.run.app',
+        baseURL: 'https://oxidimetric-unsolicited-natashia.ngrok-free.dev',
         timeout: 600000,
 });
 

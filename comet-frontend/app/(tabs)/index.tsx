@@ -56,6 +56,7 @@ export default function ChatScreen() {
 
     const [messages, setMessages] = useState<Msg[]>([]);
     const [text, setText] = useState("");
+    const [inputHeight, setHeight] = useState(0);
     const [loading, setLoading] = useState(false);
     const [streaming, setStreaming] = useState(false);
     const [conversationId, setConversationId] = useState<string | null>(null);
@@ -88,6 +89,11 @@ export default function ChatScreen() {
     const jumpAnim = useRef(new Animated.Value(0)).current;
     const SHOW_AT = 450;
     const HIDE_AT = 350;
+    const MIN_INPUT_HEIGHT = wp(10);
+    const MAX_INPUT_HEIGHT = hp(20);
+
+    const effectiveHeight = text.length === 0 ? 
+        MIN_INPUT_HEIGHT : Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight));
 
     const handleStop = () => {
         abortRef.current?.abort();
@@ -96,12 +102,14 @@ export default function ChatScreen() {
     const handleSend = async () => {
         const content = text.trim();
         if (!content || loading) return;
+        const now = Date.now();
+        const userId = `user-${now}`;
+        const aiId = `bot-${now}`;
 
-        const botId = (Date.now() + 1).toString();
         setMessages((prev) => [
             ...prev,
-            { id: Date.now().toString(), role: "user", content },
-            { id: botId, role: "ASSISTANT", content: "" },
+            { id: userId, role: "USER", content },
+            { id: aiId, role: "ASSISTANT", content: "" },
         ]);
         setText("");
         Keyboard.dismiss();
@@ -114,7 +122,7 @@ export default function ChatScreen() {
 
         const append = (chunk: string) =>
             setMessages((prev) =>
-                prev.map((m) => (m.id === botId ? { ...m, content: m.content + chunk } : m))
+                prev.map((m) => (m.id === aiId ? { ...m, content: m.content + chunk } : m))
             );
 
         let queue = "";
@@ -174,9 +182,7 @@ export default function ChatScreen() {
         } catch (error) {
             console.log("ERROR WHILE STREAMING: ", error);
             if (!controller.signal.aborted) {
-                setTimeout(() => {
-                    queue += "\n\nSomething went wrong. Please try again.";
-                }, 1000)
+                queue += "\n\nSomething went wrong. Please try again.";
                 
             }
         } finally {
@@ -187,6 +193,7 @@ export default function ChatScreen() {
                 setStreaming(false);
             }
             setLoading(false);
+            setHeight(MIN_INPUT_HEIGHT);
         }
     };
 
@@ -460,12 +467,17 @@ export default function ChatScreen() {
                     </TouchableOpacity>
 
                     <TextInput
-                        style={styles.inputText}
+                        style={[styles.inputText, {height: effectiveHeight }]}
                         onChangeText={setText}
                         value={text}
+                        scrollEnabled={inputHeight > MAX_INPUT_HEIGHT}
                         cursorColor={colors.text}
                         placeholder="Ask here"
                         placeholderTextColor={colors.placeholdertext}
+                        multiline={true}
+                        onContentSizeChange={(event) =>
+                            setHeight(event.nativeEvent.contentSize.height)
+                        }
                     />
                 </BlurView>
             </KeyboardAvoidingView>
@@ -476,7 +488,7 @@ export default function ChatScreen() {
 function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
     const buttonTop = insets.top + wp(2.5);
     const buttonHeight = hp(5);
-    const inputBottom = insets.bottom + hp(1);
+    const inputBottom = insets.bottom + hp(3);
     const inputHeight = wp(12);
 
     const topFadeHeight = buttonTop + buttonHeight + hp(4);
@@ -517,7 +529,7 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         },
         bottomFade: {
             position: "absolute",
-            bottom: 0,
+            bottom: -15,
             left: 0,
             right: 0,
             height: bottomFadeHeight,
@@ -547,12 +559,14 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         },
         inputWrapper: {
             position: "absolute",
-            left: wp(2.5),
-            right: wp(2.5),
+            left: wp(5.5),
+            right: wp(5.5),
             bottom: inputBottom,
             flexDirection: "row-reverse",
-            alignItems: "center",
-            paddingRight: wp(1.5),
+            alignItems: "flex-end",
+            paddingRight: wp(3),
+            paddingVertical: wp(1.5),
+            minHeight: wp(9) + wp(3),    
             borderColor: colors.border,
             borderWidth: wp(0.5),
             borderRadius: wp(8),
@@ -562,10 +576,12 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         inputText: {
             flex: 1,
             height: inputHeight,
-            paddingLeft: wp(5),
+            minHeight: hp(4),
+            paddingLeft: wp(4),
             fontSize: wp(4),
             fontFamily: "News-Regular",
             color: colors.text,
+            textAlignVertical: "center", 
         },
         sendButton: {
             height: wp(9),
