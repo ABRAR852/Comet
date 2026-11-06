@@ -4,7 +4,6 @@ import {
     Text,
     FlatList,
     TextInput,
-    KeyboardAvoidingView,
     Keyboard,
     Platform,
     TouchableOpacity,
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets, EdgeInsets } from "react-native-safe-area-context";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { BlurView, BlurTargetView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,9 +22,9 @@ import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { useTheme } from "../../hooks/useThemeColors";
 import UserQuery from "../../components/UserQuery";
 import ResponseBubble from "../../components/ResponseBubble";
-import { getMgs, userQuery } from "../../services/Services";
+import { getMgs } from "../../services/Services";
 import { streamChat } from "../../services/StreamChat";
-import {Svg, Path} from "react-native-svg";
+import { Svg, Path } from "react-native-svg";
 
 type Msg = { id: string; role: string; content: string };
 
@@ -52,7 +51,7 @@ export default function ChatScreen() {
     const colors = useTheme();
     const UIMode = useColorScheme();
     const insets = useSafeAreaInsets();
-    const styles = getStyles(colors, insets);
+    const styles = useMemo(() => getStyles(colors, insets), [colors, insets]);
 
     const [messages, setMessages] = useState<Msg[]>([]);
     const [text, setText] = useState("");
@@ -85,6 +84,13 @@ export default function ChatScreen() {
     const contentHRef = useRef(0);
     const layoutHRef = useRef(0);
 
+    const [inputBarHeight, setInputBarHeight] = useState(wp(12));
+    const inputBottom = insets.bottom + hp(3);
+
+    const [kbHeight, setKbHeight] = useState(0);
+    const kbExtra = Platform.OS === "android" ? insets.bottom : 0;
+    const bottomOffset = kbHeight > 0 ? kbHeight + kbExtra + hp(1.5) : inputBottom;
+
     const [showJump, setShowJump] = useState(false);
     const jumpAnim = useRef(new Animated.Value(0)).current;
     const SHOW_AT = 450;
@@ -92,8 +98,15 @@ export default function ChatScreen() {
     const MIN_INPUT_HEIGHT = wp(10);
     const MAX_INPUT_HEIGHT = hp(20);
 
-    const effectiveHeight = text.length === 0 ? 
-        MIN_INPUT_HEIGHT : Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight));
+    const effectiveHeight =
+        text.length === 0
+            ? MIN_INPUT_HEIGHT
+            : Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight));
+
+    const scrollToBottom = (animated = true) => {
+        const target = Math.max(0, contentHRef.current - layoutHRef.current);
+        flatListRef.current?.scrollToOffset({ offset: target, animated });
+    };
 
     const handleStop = () => {
         abortRef.current?.abort();
@@ -116,6 +129,7 @@ export default function ChatScreen() {
         setLoading(true);
         setStreaming(true);
         stickRef.current = true;
+        setTimeout(() => scrollToBottom(true), 100);
 
         const controller = new AbortController();
         abortRef.current = controller;
@@ -136,10 +150,10 @@ export default function ChatScreen() {
         let running = true;
         let raf = 0;
 
-        const loop = (now: number) => {
+        const loop = (t: number) => {
             if (!running) return;
-            const dt = Math.min(now - lastFrame, 100);
-            lastFrame = now;
+            const dt = Math.min(t - lastFrame, 100);
+            lastFrame = t;
 
             if (queue.length) {
                 const cps = Math.min(MAX_CPS, BASE_CPS + queue.length * 0.8);
@@ -148,18 +162,21 @@ export default function ChatScreen() {
                 carry = 0;
             }
 
-            if (carry >= 1 && now - lastCommit >= COMMIT_MS) {
+            if (carry >= 1 && t - lastCommit >= COMMIT_MS) {
                 const n = Math.min(Math.floor(carry), queue.length);
                 carry -= n;
                 const chunk = queue.slice(0, n);
                 queue = queue.slice(n);
-                lastCommit = now;
+                lastCommit = t;
                 append(chunk);
             }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
-        const stopLoop = () => { running = false; cancelAnimationFrame(raf); };
+        const stopLoop = () => {
+            running = false;
+            cancelAnimationFrame(raf);
+        };
 
         const waitForDrain = () =>
             new Promise<void>((resolve) => {
@@ -183,7 +200,6 @@ export default function ChatScreen() {
             console.log("ERROR WHILE STREAMING: ", error);
             if (!controller.signal.aborted) {
                 queue += "\n\nSomething went wrong. Please try again.";
-                
             }
         } finally {
             await waitForDrain();
@@ -196,6 +212,29 @@ export default function ChatScreen() {
             setHeight(MIN_INPUT_HEIGHT);
         }
     };
+
+    useEffect(() => {
+        const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const show = Keyboard.addListener(showEvt, (e) => {
+            stickRef.current = true;
+            setKbHeight(e.endCoordinates.height);
+            setTimeout(() => scrollToBottom(true), 100);
+        });
+        const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+
+        return () => {
+            show.remove();
+            hide.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (isEmpty || !stickRef.current) return;
+        const id = requestAnimationFrame(() => scrollToBottom(false));
+        return () => cancelAnimationFrame(id);
+    }, [inputBarHeight]);
 
     useEffect(() => {
         if (!streaming) return;
@@ -234,6 +273,7 @@ export default function ChatScreen() {
                 role: m.role,
                 content: m.content,
             }));
+            stickRef.current = true;
             setMessages(list);
             setConversationId(id);
         } catch (error) {
@@ -285,11 +325,7 @@ export default function ChatScreen() {
 
     return (
         <View style={styles.container}>
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-            >
-
+            <View style={styles.flex}>
                 <BlurTargetView
                     ref={targetRef}
                     style={[styles.flex, isEmpty && styles.centered]}
@@ -298,58 +334,75 @@ export default function ChatScreen() {
                         <Text style={styles.welcomeText}>Ask anything!</Text>
                     ) : (
                         <FlatList
-                        ref={flatListRef}
-                        data={messages}
-                        keyExtractor={(item) => item.id}
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.messageList}
-                        scrollEventThrottle={16}
-                        onLayout={(e) => { layoutHRef.current = e.nativeEvent.layout.height; }}
-                        onContentSizeChange={(_, h) => {
-                            contentHRef.current = h;
-                            if (!streaming && stickRef.current) {
-                                flatListRef.current?.scrollToEnd({ animated: false });
-                            }
-                        }}
-                        onScrollBeginDrag={() => {
-                            draggingRef.current = true;
-                            stickRef.current = false;
-                        }}
-                        onScrollEndDrag={() => { draggingRef.current = false; }}
-                        onMomentumScrollEnd={() => { draggingRef.current = false; }}
-                        onScroll={(e) => {
-                            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-                            offsetRef.current = contentOffset.y;
+                            ref={flatListRef}
+                            data={messages}
+                            keyExtractor={(item) => item.id}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={[
+                                styles.messageList,
+                                { paddingBottom: bottomOffset + inputBarHeight + hp(2) },
+                            ]}
+                            scrollEventThrottle={20}
+                            onLayout={(e) => {
+                                layoutHRef.current = e.nativeEvent.layout.height;
+                                if (stickRef.current && !streaming) {
+                                    scrollToBottom(false);
+                                }
+                            }}
+                            onContentSizeChange={(_, h) => {
+                                contentHRef.current = h;
+                                if (!streaming && stickRef.current) {
+                                    scrollToBottom(false);
+                                }
+                            }}
+                            onScrollBeginDrag={() => {
+                                draggingRef.current = true;
+                                stickRef.current = false;
+                            }}
+                            onScrollEndDrag={() => {
+                                draggingRef.current = false;
+                            }}
+                            onMomentumScrollEnd={() => {
+                                draggingRef.current = false;
+                            }}
+                            onScroll={(e) => {
+                                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                                offsetRef.current = contentOffset.y;
 
-                            const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
+                                const dist =
+                                    contentSize.height - layoutMeasurement.height - contentOffset.y;
 
-                            if(contentSize.height <= layoutMeasurement.height){
-                                setShowJump(false);
-                            }else if(dist > SHOW_AT){
-                                setShowJump(true);
-                            }else if(dist < HIDE_AT){
-                                setShowJump(false);
-                            }
+                                if (contentSize.height <= layoutMeasurement.height) {
+                                    setShowJump(false);
+                                } else if (dist > SHOW_AT) {
+                                    setShowJump(true);
+                                } else if (dist < HIDE_AT) {
+                                    setShowJump(false);
+                                }
 
-                            if (draggingRef.current || !stickRef.current) {
-                                posRef.current = contentOffset.y;
-                                const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
-                                if (!draggingRef.current && dist < 30) stickRef.current = true;
-                            }
-                        }}
+                                if (draggingRef.current || !stickRef.current) {
+                                    posRef.current = contentOffset.y;
+                                    if (!draggingRef.current && dist < 30) stickRef.current = true;
+                                }
+                            }}
                             renderItem={({ item }) =>
-                            item.role === "ASSISTANT" ? (
-                                item.content ? <ResponseBubble content={item.content} /> : null
-                            ) : (
-                                <UserQuery content={item.content} />
-                            )
-                        }
-                        ListFooterComponent={
-                            waitingForFirstToken ? (
-                                <ActivityIndicator size="small" color={colors.text} style={styles.loader} />
-                            ) : null
-                        }
-                    />
+                                item.role === "ASSISTANT" ? (
+                                    item.content ? <ResponseBubble content={item.content} /> : null
+                                ) : (
+                                    <UserQuery content={item.content} />
+                                )
+                            }
+                            ListFooterComponent={
+                                waitingForFirstToken ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.text}
+                                        style={styles.loader}
+                                    />
+                                ) : null
+                            }
+                        />
                     )}
                 </BlurTargetView>
 
@@ -364,7 +417,13 @@ export default function ChatScreen() {
                     pointerEvents="none"
                     colors={[fadeColors[2], fadeColors[1], fadeColors[0]]}
                     locations={fadeLocations}
-                    style={styles.bottomFade}
+                    style={[
+                        styles.bottomFade,
+                        {
+                            bottom: (kbHeight > 0 ? kbHeight + kbExtra : 0) - 15,
+                            height: inputBottom + inputBarHeight + hp(4),
+                        },
+                    ]}
                 />
 
                 <BlurView
@@ -404,12 +463,13 @@ export default function ChatScreen() {
                     style={[
                         styles.jumpWrap,
                         {
+                            bottom: bottomOffset + inputBarHeight + hp(1.5),
                             opacity: jumpAnim,
                             transform: [
                                 {
                                     translateY: jumpAnim.interpolate({
                                         inputRange: [0, 1],
-                                        outputRange: [180, 0],
+                                        outputRange: [60, 0],
                                     }),
                                 },
                                 {
@@ -422,8 +482,8 @@ export default function ChatScreen() {
                                     rotate: jumpAnim.interpolate({
                                         inputRange: [0, 1],
                                         outputRange: ["-90deg", "0deg"],
-                                    })
-                                }
+                                    }),
+                                },
                             ],
                         },
                     ]}
@@ -436,11 +496,16 @@ export default function ChatScreen() {
                         style={styles.topButtonWrapper}
                     >
                         <TouchableOpacity onPress={jumpButton}>
-                            <Svg style={styles.topButton} viewBox="0 0 524 835" >
-
-                                <Path d= "M17.2089 574.062C17.2089 574.062 167.385 577.381 209.738 521.26C252.092 465.138 260.884 30.5154 260.884 30.5154C260.884 30.5154 252.097 465.412 313.456 521.109C368.618 576.815 506.138 573.351 506.138 573.351C506.138 573.351 368.608 570.288 313.609 626.154C258.609 682.02 262.034 821.301 262.034 821.301C262.034 821.301 265.053 682.011 209.891 626.305C154.729 570.599 17.2089 574.062 17.2089 574.062Z" fill={colors.text}/>
-                                <Path d= "M0.833187 573.788C0.833187 573.788 161.287 577.286 206.539 518.081C251.792 458.876 261.194 0.379785 261.194 0.379785C261.194 0.379785 251.798 459.165 317.355 517.92C376.291 576.685 523.222 573.029 523.222 573.029C523.222 573.029 376.281 569.8 317.516 628.735C258.751 687.671 262.407 834.603 262.407 834.603C262.407 834.603 265.636 687.661 206.7 628.897C147.765 570.132 0.833187 573.788 0.833187 573.788Z" fill={colors.text} fillOpacity={"0.3"}/>
-
+                            <Svg style={styles.topButton} viewBox="0 0 524 835">
+                                <Path
+                                    d="M17.2089 574.062C17.2089 574.062 167.385 577.381 209.738 521.26C252.092 465.138 260.884 30.5154 260.884 30.5154C260.884 30.5154 252.097 465.412 313.456 521.109C368.618 576.815 506.138 573.351 506.138 573.351C506.138 573.351 368.608 570.288 313.609 626.154C258.609 682.02 262.034 821.301 262.034 821.301C262.034 821.301 265.053 682.011 209.891 626.305C154.729 570.599 17.2089 574.062 17.2089 574.062Z"
+                                    fill={colors.text}
+                                />
+                                <Path
+                                    d="M0.833187 573.788C0.833187 573.788 161.287 577.286 206.539 518.081C251.792 458.876 261.194 0.379785 261.194 0.379785C261.194 0.379785 251.798 459.165 317.355 517.92C376.291 576.685 523.222 573.029 523.222 573.029C523.222 573.029 376.281 569.8 317.516 628.735C258.751 687.671 262.407 834.603 262.407 834.603C262.407 834.603 265.636 687.661 206.7 628.897C147.765 570.132 0.833187 573.788 0.833187 573.788Z"
+                                    fill={colors.text}
+                                    fillOpacity={"0.3"}
+                                />
                             </Svg>
                         </TouchableOpacity>
                     </BlurView>
@@ -451,10 +516,14 @@ export default function ChatScreen() {
                     blurMethod="dimezisBlurView"
                     tint={tint}
                     intensity={45}
-                    style={styles.inputWrapper}
+                    style={[styles.inputWrapper, { bottom: bottomOffset }]}
+                    onLayout={(e) => setInputBarHeight(e.nativeEvent.layout.height)}
                 >
                     <TouchableOpacity
-                        style={[styles.sendButton, !streaming && !text.trim() && styles.sendButtonDisabled]}
+                        style={[
+                            styles.sendButton,
+                            !streaming && !text.trim() && styles.sendButtonDisabled,
+                        ]}
                         activeOpacity={0.5}
                         onPress={streaming ? handleStop : handleSend}
                         disabled={!streaming && !text.trim()}
@@ -467,7 +536,7 @@ export default function ChatScreen() {
                     </TouchableOpacity>
 
                     <TextInput
-                        style={[styles.inputText, {height: effectiveHeight }]}
+                        style={[styles.inputText, { height: effectiveHeight }]}
                         onChangeText={setText}
                         value={text}
                         scrollEnabled={inputHeight > MAX_INPUT_HEIGHT}
@@ -480,7 +549,7 @@ export default function ChatScreen() {
                         }
                     />
                 </BlurView>
-            </KeyboardAvoidingView>
+            </View>
         </View>
     );
 }
@@ -489,10 +558,8 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
     const buttonTop = insets.top + wp(2.5);
     const buttonHeight = hp(5);
     const inputBottom = insets.bottom + hp(3);
-    const inputHeight = wp(12);
 
     const topFadeHeight = buttonTop + buttonHeight + hp(4);
-    const bottomFadeHeight = inputBottom + inputHeight + hp(4);
 
     return StyleSheet.create({
         flex: {
@@ -514,7 +581,6 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         messageList: {
             paddingHorizontal: wp(3),
             paddingTop: buttonTop + buttonHeight + hp(2),
-            paddingBottom: inputBottom + inputHeight + hp(7),
         },
         loader: {
             marginVertical: hp(1),
@@ -532,7 +598,6 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
             bottom: -15,
             left: 0,
             right: 0,
-            height: bottomFadeHeight,
         },
         roundButton: {
             position: "absolute",
@@ -566,7 +631,7 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
             alignItems: "flex-end",
             paddingRight: wp(3),
             paddingVertical: wp(1.5),
-            minHeight: wp(9) + wp(3),    
+            minHeight: wp(9) + wp(3),
             borderColor: colors.border,
             borderWidth: wp(0.5),
             borderRadius: wp(8),
@@ -575,13 +640,12 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         },
         inputText: {
             flex: 1,
-            height: inputHeight,
             minHeight: hp(4),
             paddingLeft: wp(4),
             fontSize: wp(4),
             fontFamily: "News-Regular",
             color: colors.text,
-            textAlignVertical: "center", 
+            textAlignVertical: "center",
         },
         sendButton: {
             height: wp(9),
@@ -597,10 +661,10 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         topButtonWrapper: {
             borderRadius: wp(12),
             right: wp(2),
-            justifyContent: 'center',
-            alignItems: 'center',
-            overflow: 'hidden',
-            padding: wp(1)
+            justifyContent: "center",
+            alignItems: "center",
+            overflow: "hidden",
+            padding: wp(1),
         },
         topButton: {
             height: hp(4.5),
@@ -608,7 +672,6 @@ function getStyles(colors: ReturnType<typeof useTheme>, insets: EdgeInsets) {
         },
         jumpWrap: {
             position: "absolute",
-            bottom: inputBottom + inputHeight + hp(7),
             right: wp(7),
             zIndex: 10,
         },
