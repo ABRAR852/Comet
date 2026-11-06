@@ -51,9 +51,41 @@ public class MsgRepository {
         }
     }
 
+    public long getMsgCount(String convId){
+        try {
+            String sql = "SELECT COUNT(*) FROM messages WHERE conversation_id = ?";
+            Long count = jdbcTemplate.queryForObject(sql, Long.class, UUID.fromString(convId));
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public List<org.springframework.ai.chat.messages.Message> getMsgHistory(UUID conversationId){
         try {
-            String sql = "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY datetime DESC LIMIT 10";
+            String sql = "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY datetime DESC LIMIT 300";
+            List<org.springframework.ai.chat.messages.Message> messages = jdbcTemplate.query(sql, (rs, rowNum) -> {
+                String role = rs.getString("role");
+                String content = rs.getString("content");
+
+                if ("USER".equalsIgnoreCase(role)) {
+                    return new UserMessage(content);
+                } else {
+                    return new AssistantMessage(content);
+                }
+
+            }, conversationId);
+            Collections.reverse(messages);
+            return messages;
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<org.springframework.ai.chat.messages.Message> getMsgHistoryForTitle(UUID conversationId){
+        try {
+            String sql = "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY datetime DESC LIMIT 30";
             List<org.springframework.ai.chat.messages.Message> messages = jdbcTemplate.query(sql, (rs, rowNum) -> {
                 String role = rs.getString("role");
                 String content = rs.getString("content");

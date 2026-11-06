@@ -36,33 +36,6 @@ public class AiService {
         this.msgRepository = msgRepository;
         this.convRepository = convRepository;
     }
-
-    // local time context for llm
-    private static String now() {
-        return ZonedDateTime.now(ZoneId.of("Asia/Kolkata"))
-                .format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy hh:mm a z"));
-    }
-
-    private void saveExchange(UUID raw, String userContent, String answer) {
-        if (answer.isBlank()) return;
-
-        Message userMsg = new Message();
-        userMsg.setConversationId(raw);
-        userMsg.setContent(userContent);
-        userMsg.setRole(MessageRole.USER);
-
-        Message aiMsg = new Message();
-        aiMsg.setConversationId(raw);
-        aiMsg.setContent(answer);
-        aiMsg.setRole(MessageRole.ASSISTANT);
-
-        if (convRepository.getConvTitleById(raw.toString())) {
-            convRepository.addConvTitle(raw.toString(), userContent, answer);
-        }
-        convRepository.addConv(raw);
-        msgRepository.addMsg(userMsg, aiMsg);
-    }
-
     private  String SYSTEM_PROMPT() {
         return """
             You are Comet, a personal AI assistant in a mobile app. Sharp, warm, exact: a brilliant friend with deep expertise who tells the truth and doesn't waste time. Priorities in order: correct, useful, clear, kind.
@@ -154,57 +127,34 @@ public class AiService {
             """;
     }
 
-    public MessageDTO askAi (MessageDTO userQuery) {
-        try {
-            String conversationId = userQuery.getConversationId();
-            UUID raw = (conversationId != null && !conversationId.trim().isEmpty()
-                    ? UUID.fromString(conversationId)
-                    : UUID.randomUUID());
+    // local time context for llm
+    private static String now() {
+        return ZonedDateTime.now(ZoneId.of("Asia/Kolkata"))
+                .format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy hh:mm a z"));
+    }
 
-            List<org.springframework.ai.chat.messages.Message> msgHistory = msgRepository.getMsgHistory(raw);
+    private void saveExchange(UUID raw, String userContent, String answer) {
+        if (answer.isBlank()) return;
 
-            if(msgHistory == null){
-                msgHistory = List.of();
-            }
+        Message userMsg = new Message();
+        userMsg.setConversationId(raw);
+        userMsg.setContent(userContent);
+        userMsg.setRole(MessageRole.USER);
 
-            ChatResponse content = chatClient.prompt()
-                    .system(s -> s.text(SYSTEM_PROMPT()).param("currentTime", now()))
-                    .messages(msgHistory)
-                    .user(userQuery.getContent())
-                    .tools(toolsCall)
-                    .call()
-                    .chatResponse();
+        Message aiMsg = new Message();
+        aiMsg.setConversationId(raw);
+        aiMsg.setContent(answer);
+        aiMsg.setRole(MessageRole.ASSISTANT);
 
-            if(content != null && content.getResult() != null){
-
-                String userContent = userQuery.getContent();
-                Message userMsg = new Message(); // USER MESSAGE
-                userMsg.setConversationId(raw);
-                userMsg.setContent(userContent);
-                userMsg.setRole(MessageRole.USER);
-
-                Message aiMsg = new Message(); // ASSISTANT MESSAGE
-                aiMsg.setConversationId(raw);
-                aiMsg.setContent(content.getResult().getOutput().getText());
-                aiMsg.setRole(MessageRole.ASSISTANT);
-
-                if(convRepository.getConvTitleById(raw.toString())){
-                    convRepository.addConvTitle(raw.toString(), userQuery.getContent(), content.getResult().getOutput().getText());
-                }
-
-                convRepository.addConv(raw); // SAVES CONVERSATION INTO DATABASE
-                msgRepository.addMsg(userMsg, aiMsg); // SAVES MESSAGES INTO DATABASE
-
-                MessageDTO messageDTO = new MessageDTO();
-                messageDTO.setConversationId(raw.toString());
-                messageDTO.setContent(content.getResult().getOutput().getText());
-                messageDTO.setRole(MessageRole.ASSISTANT);
-                return messageDTO;
-            }
-        } catch (Exception e) {
-            log.error("e: ", e);
+        if (convRepository.getConvTitleById(raw.toString())) {
+            convRepository.addConvTitle(raw.toString(), userContent, answer);
         }
-        return null;
+        convRepository.addConv(raw);
+        msgRepository.addMsg(userMsg, aiMsg);
+
+        if(msgRepository.getMsgCount(raw.toString()) % 10 == 0){
+            convRepository.reSummarizeConvTitle(raw);
+        };
     }
 
     public Flux<Map<String, String>> askAiFlux (MessageDTO userQuery) {

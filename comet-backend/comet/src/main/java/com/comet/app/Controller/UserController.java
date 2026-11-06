@@ -49,14 +49,6 @@ public class UserController {
         return ResponseEntity.ok("GOOD");
     }
 
-    @PostMapping("/askQuery") // API for user queries
-    public MessageDTO askQuery(@RequestBody MessageDTO userQuery){
-        try {
-            return aiMessageService.askAi(userQuery);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     @PostMapping(value = "/askQueryFlux", produces = MediaType.TEXT_EVENT_STREAM_VALUE) // Streaming API for user queries
     public Flux<Map<String, String>> askQueryFlux(@RequestBody MessageDTO userQuery){

@@ -1,6 +1,7 @@
 package com.comet.app.Repository;
 import com.comet.app.Entity.ConversationDTO;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -8,17 +9,23 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import static io.modelcontextprotocol.spec.McpTransport.logger;
 
 @Repository
 public class ConvRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final ChatClient chatClient;
+    private final MsgRepository msgRepository;
 
     public ConvRepository(JdbcTemplate jdbcTemplate,
-                          ChatClient.Builder chatClientBuilder) {
+                          ChatClient.Builder chatClientBuilder,
+                          MsgRepository msgRepository) {
         this.jdbcTemplate = jdbcTemplate;
         this.chatClient = chatClientBuilder.build();
+        this.msgRepository = msgRepository;
     }
 
     public String createTable() {
@@ -104,6 +111,52 @@ public class ConvRepository {
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Async
+    public void reSummarizeConvTitle(UUID convId) {
+        try {
+            String SystemPrompt = """
+                You are an automated title generator for an AI assistant sidebar you get 20 to 30 messages list combined user and ai role.
+                Create a 2 to 4 word topic title based on the first conversation exchange.
+            
+                STRICT RULES:
+                1. Output ONLY the title text—no quotes, no prefixes, no punctuation.
+                2. NEVER use meta-verbs or action descriptions like "Inquiring about", "Asking for", "Discussion on", "Requesting help".
+                3. Focus on the core subject/noun, not the action.
+                4. Capitalize each word (Title Case).
+                
+                Task: Convert the conversation start into a 2-4 word sidebar title.
+            
+                Examples:
+                User: "How do I fix a NullPointerException in Spring Boot JDBC?"
+                Title: Spring Boot JDBC Fix
+            
+                User: "I am feeling a bit down and stressed today."
+                Title: Stress & Mood Check
+            
+                User: "Write a React Native drawer component in Expo Router."
+                Title: React Native Drawer Setup
+            
+                User: "What is the capital of France?"
+                Title: Capital of France
+                """;
+
+            List<Message> msgHistoryForTitle = msgRepository.getMsgHistoryForTitle(convId);
+            String msgHistory = msgHistoryForTitle.stream().map(m -> m.getMessageType() + ":" + m.getText())
+                    .collect(Collectors.joining("\n"));
+            String rawTitle = chatClient.prompt().system(SystemPrompt).user(msgHistory).call().content();
+
+            if(rawTitle != null && !rawTitle.isBlank()){
+
+                String cleanTitle = rawTitle.replaceAll("^\"|\"$", "").trim();
+
+                jdbcTemplate.update("INSERT INTO conversations (id, title) VALUES (?, ?) ON CONFLICT (id) " +
+                        "DO UPDATE SET title = EXCLUDED.title", convId, cleanTitle);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to generate title: {}", e.getMessage(), e);
         }
     }
 }
